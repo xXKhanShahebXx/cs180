@@ -3,10 +3,9 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Project 1</title>
+  <title>Project 1 — Prokudin-Gorskii Colorizing</title>
   <meta name="theme-color" content="#0f1226"/>
   <link rel="stylesheet" href="assets/style.css?v=2"/>
-
 </head>
 <body>
 <nav class="topbar">
@@ -18,12 +17,136 @@
     </div>
   </div>
 </nav>
+
 <main class="container">
+  <!-- Overview -->
   <section class="section">
-    <h2>Project 1</h2>
-    <p>This page is a placeholder. Duplicate the structure from Project 0 or write your own.</p>
+    <h2>Project 1 — Colorizing the Prokudin-Gorskii Collection</h2>
+    <p>
+      The input is a single grayscale plate stacked vertically in the order <strong>B, G, R</strong>.
+      I split the image into three equal parts, then align the <em>G</em> and <em>R</em> channels to <em>B</em>
+      using a search over integer translations. For small images I run a single-scale exhaustive window search;
+      for large .tif plates I use a coarse-to-fine <strong>image pyramid</strong> that aligns at low resolution
+      and refines at higher resolutions. I support two scoring metrics—<strong>NCC</strong> (maximize) and
+      <strong>SSD</strong> (minimize)—and two feature modes: raw intensities and <strong>edges</strong>.
+    </p>
+    <p>
+      To keep the match robust, scoring is computed on the interior (borders ignored), which prevents black/white frames from
+      degrading the metric. The final result stacks the shifted channels into RGB and applies a light
+      <strong>auto-contrast</strong> stretch for display.
+    </p>
+    <h3 style="margin-top:24px">Notes on tricky images (Emir)</h3>
+    <p>
+      The <em>Emir of Bukhara</em> plate has strong brightness and color differences between channels, so raw-intensity matching
+      can mislead the metric. Switching to <strong>edge features</strong> with <strong>NCC</strong> gave stable, accurate alignment
+      because edges are less sensitive to cross-channel brightness shifts.
+    </p>
+  </section>
+
+  <!-- Results: 14 images -->
+<section class="section">
+  <h2>Results (14 Images)</h2>
+  <p>Place your aligned JPEGs into <code>results/</code> with these names. Offsets shown per image.</p>
+  <div class="grid">
+    <figure class="card">
+      <img src="results/cathedral_out.jpg" alt="cathedral">
+      <figcaption><strong>cathedral</strong><br>Green offset: (x=+2, y=+5)<br>Red offset: (x=+3, y=+12)</figcaption>
+    </figure>
+
+    <figure class="card">
+      <img src="results/church_out.jpg" alt="church">
+      <figcaption><strong>church</strong><br>Green offset: (x=+4, y=+25)<br>Red offset: (x=-4, y=+58)</figcaption>
+    </figure>
+
+    <figure class="card">
+      <img src="results/emir_out.jpg" alt="emir">
+      <figcaption><strong>emir</strong><br>Green offset: (x=+23, y=+49)<br>Red offset: (x=+40, y=+107)</figcaption>
+    </figure>
+
+    <figure class="card">
+      <img src="results/harvesters_out.jpg" alt="harvesters">
+      <figcaption><strong>harvesters</strong><br>Green offset: (x=+18, y=+60)<br>Red offset: (x=+14, y=+123)</figcaption>
+    </figure>
+
+    <figure class="card">
+      <img src="results/icon_out.jpg" alt="icon">
+      <figcaption><strong>icon</strong><br>Green offset: (x=+16, y=+38)<br>Red offset: (x=+22, y=+89)</figcaption>
+    </figure>
+
+    <figure class="card">
+      <img src="results/italil_out.jpg" alt="italil">
+      <figcaption><strong>italil</strong><br>Green offset: (x=+22, y=+38)<br>Red offset: (x=+36, y=+77)</figcaption>
+    </figure>
+
+    <figure class="card">
+      <img src="results/lastochikino_out.jpg" alt="lastochikino">
+      <figcaption><strong>lastochikino</strong><br>Green offset: (x=-2, y=-3)<br>Red offset: (x=-9, y=+76)</figcaption>
+    </figure>
+
+    <figure class="card">
+      <img src="results/lugano_out.jpg" alt="lugano">
+      <figcaption><strong>lugano</strong><br>Green offset: (x=-17, y=+41)<br>Red offset: (x=-29, y=+93)</figcaption>
+    </figure>
+
+    <figure class="card">
+      <img src="results/melons_out.jpg" alt="melons">
+      <figcaption><strong>melons</strong><br>Green offset: (x=+9, y=+79)<br>Red offset: (x=+14, y=+177)</figcaption>
+    </figure>
+
+    <figure class="card">
+      <img src="results/monastery_out.jpg" alt="monastery">
+      <figcaption><strong>monastery</strong><br>Green offset: (x=+2, y=-3)<br>Red offset: (x=+2, y=+3)</figcaption>
+    </figure>
+
+    <figure class="card">
+      <img src="results/self_portrait_out.jpg" alt="self_portrait">
+      <figcaption><strong>self_portrait</strong><br>Green offset: (x=+29, y=+77)<br>Red offset: (x=+37, y=+175)</figcaption>
+    </figure>
+
+    <figure class="card">
+      <img src="results/siren_out.jpg" alt="siren">
+      <figcaption><strong>siren</strong><br>Green offset: (x=-8, y=+49)<br>Red offset: (x=-23, y=+96)</figcaption>
+    </figure>
+
+    <figure class="card">
+      <img src="results/three_generations_out.jpg" alt="three_generations">
+      <figcaption><strong>three_generations</strong><br>Green offset: (x=+17, y=+58)<br>Red offset: (x=+8, y=+111)</figcaption>
+    </figure>
+
+    <figure class="card">
+      <img src="results/tobolsk_out.jpg" alt="tobolsk">
+      <figcaption><strong>tobolsk</strong><br>Green offset: (x=+3, y=+3)<br>Red offset: (x=+3, y=+6)</figcaption>
+    </figure>
+  </div>
+</section>
+
+  <!-- Personal selections -->
+  <section class="section">
+    <h2>My Favorites</h2>
+    <div class="grid">
+      <figure class="card"><img src="results/master_prok_out.jpg" alt="favorite 1"/><figcaption>master</figcaption></figure>
+      <figure class="card"><img src="results/woman_out.jpg" alt="favorite 2"/><figcaption>woman</figcaption></figure>
+      <figure class="card"><img src="results/metal_ornament_out.jpg" alt="favorite 3"/><figcaption>metal_ornament</figcaption></figure>
+    </div>
+  </section>
+
+  <!-- Bells & Whistles implemented -->
+  <section class="section">
+    <h2>Bells &amp; Whistles</h2>
+    <h3>Better Features (Edges)</h3>
+    <p>
+      For challenging plates with cross-channel brightness shifts (e.g., <em>Emir</em>), I align on
+      <strong>Canny edges</strong> instead of raw intensities. Edges emphasize structure and are
+      far less sensitive to exposure/color differences, which improves NCC scores and yields correct alignment.
+    </p>
+    <h3>Automatic Contrast</h3>
+    <p>
+      After alignment I apply a per-channel percentile stretch to map intensities to [0,1]. This
+      improves visibility without altering geometry and keeps outputs web-friendly.
+    </p>
   </section>
 </main>
+
 <footer class="container footer">
   <div>Project 1 · CS180/280A</div>
 </footer>
