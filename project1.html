@@ -59,38 +59,38 @@
     </figure>
 
     <figure class="card">
-      <img src="results/emir_out.jpg" alt="emir">
-      <figcaption><strong>emir</strong><br>Green offset: (x=+23, y=+49)<br>Red offset: (x=+40, y=+107)</figcaption>
+      <img src="results/emir_misaligned_out.jpg" alt="emir">
+      <figcaption><strong>emir</strong><br>Green offset: (x=+24, y=+49)<br>Red offset: (x=-282, y=+129)</figcaption>
     </figure>
 
     <figure class="card">
       <img src="results/harvesters_out.jpg" alt="harvesters">
-      <figcaption><strong>harvesters</strong><br>Green offset: (x=+18, y=+60)<br>Red offset: (x=+14, y=+123)</figcaption>
+      <figcaption><strong>harvesters</strong><br>Green offset: (x=+17, y=+60)<br>Red offset: (x=+14, y=+124)</figcaption>
     </figure>
 
     <figure class="card">
       <img src="results/icon_out.jpg" alt="icon">
-      <figcaption><strong>icon</strong><br>Green offset: (x=+16, y=+38)<br>Red offset: (x=+22, y=+89)</figcaption>
+      <figcaption><strong>icon</strong><br>Green offset: (x=+17, y=+41)<br>Red offset: (x=+23, y=+89)</figcaption>
     </figure>
 
     <figure class="card">
       <img src="results/italil_out.jpg" alt="italil">
-      <figcaption><strong>italil</strong><br>Green offset: (x=+22, y=+38)<br>Red offset: (x=+36, y=+77)</figcaption>
+      <figcaption><strong>italil</strong><br>Green offset: (x=+21, y=+38)<br>Red offset: (x=+35, y=+76)</figcaption>
     </figure>
 
     <figure class="card">
       <img src="results/lastochikino_out.jpg" alt="lastochikino">
-      <figcaption><strong>lastochikino</strong><br>Green offset: (x=-2, y=-3)<br>Red offset: (x=-9, y=+76)</figcaption>
+      <figcaption><strong>lastochikino</strong><br>Green offset: (x=-2, y=-3)<br>Red offset: (x=-9, y=+75)</figcaption>
     </figure>
 
     <figure class="card">
       <img src="results/lugano_out.jpg" alt="lugano">
-      <figcaption><strong>lugano</strong><br>Green offset: (x=-17, y=+41)<br>Red offset: (x=-29, y=+93)</figcaption>
+      <figcaption><strong>lugano</strong><br>Green offset: (x=-16, y=+41)<br>Red offset: (x=-29, y=+93)</figcaption>
     </figure>
 
     <figure class="card">
       <img src="results/melons_out.jpg" alt="melons">
-      <figcaption><strong>melons</strong><br>Green offset: (x=+9, y=+79)<br>Red offset: (x=+14, y=+177)</figcaption>
+      <figcaption><strong>melons</strong><br>Green offset: (x=+11, y=+82)<br>Red offset: (x=+13, y=+178)</figcaption>
     </figure>
 
     <figure class="card">
@@ -100,17 +100,17 @@
 
     <figure class="card">
       <img src="results/self_portrait_out.jpg" alt="self_portrait">
-      <figcaption><strong>self_portrait</strong><br>Green offset: (x=+29, y=+77)<br>Red offset: (x=+37, y=+175)</figcaption>
+      <figcaption><strong>self_portrait</strong><br>Green offset: (x=+29, y=+79)<br>Red offset: (x=+37, y=+176)</figcaption>
     </figure>
 
     <figure class="card">
       <img src="results/siren_out.jpg" alt="siren">
-      <figcaption><strong>siren</strong><br>Green offset: (x=-8, y=+49)<br>Red offset: (x=-23, y=+96)</figcaption>
+      <figcaption><strong>siren</strong><br>Green offset: (x=-6, y=+49)<br>Red offset: (x=-25, y=+96)</figcaption>
     </figure>
 
     <figure class="card">
       <img src="results/three_generations_out.jpg" alt="three_generations">
-      <figcaption><strong>three_generations</strong><br>Green offset: (x=+17, y=+58)<br>Red offset: (x=+8, y=+111)</figcaption>
+      <figcaption><strong>three_generations</strong><br>Green offset: (x=+14, y=+53)<br>Red offset: (x=+11, y=+112)</figcaption>
     </figure>
 
     <figure class="card">
@@ -129,6 +129,29 @@
       <figure class="card"><img src="results/metal_ornament_out.jpg" alt="favorite 3"/><figcaption>metal_ornament</figcaption></figure>
     </div>
   </section>
+
+<!-- Failure case & fix -->
+<section class="section">
+  <h2>When Alignment Fails (Emir)</h2>
+  <p>
+    The <em>Emir of Bukhara</em> plate misaligns when using raw intensities with NCC because the three channels
+    have very different exposures/brightness. NCC then prefers wrong offsets dominated by luminance shifts and
+    even border content, producing ghosting. Switching to <strong>edge features</strong> (Canny) with NCC makes the
+    score depend on structure rather than brightness, so the correct alignment is recovered.
+  </p>
+
+  <div class="grid grid-lg">
+    <figure class="card">
+      <img src="results/emir_misaligned_out.jpg" alt="Emir — NCC on raw (misaligned)">
+      <figcaption><strong>Emir — NCC on raw</strong><br>Ghosting/double image: correlation latches onto brightness differences and borders.</figcaption>
+    </figure>
+
+    <figure class="card">
+      <img src="results/emir_out.jpg" alt="Emir — NCC on edges (fixed)">
+      <figcaption><strong>Emir — NCC on edges</strong><br>Using Canny edges yields robust structure matches and correct alignment.</figcaption>
+    </figure>
+  </div>
+</section>
 
   <!-- Bells & Whistles implemented -->
   <section class="section">
