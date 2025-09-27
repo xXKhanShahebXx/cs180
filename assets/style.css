@@ -138,6 +138,22 @@ img{max-width:100%;height:auto;border-radius:12px;display:block}
   display:grid;gap:14px;
   grid-template-columns: 1fr 1fr;
 }
+.gallery.grid-code { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+.gallery.grid-code > * { min-width: 0; } 
+
+pre.codeblock{
+  display:block;
+  max-width:100%;
+  overflow-x:auto;
+  background:#0b1124;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:12px;
+  padding:12px;
+  margin:0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size:13px; line-height:1.5; tab-size:2;
+}
+
 @media (max-width: 780px){ .gallery{grid-template-columns:1fr} }
 
 .figure{background:rgba(0,0,0,.15);padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.06)}
