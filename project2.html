@@ -170,6 +170,171 @@ print(f"max|custom - scipy| = {err:.2e}")</code></pre>
         </figure>
       </div>
     </section>
+
+    <!-- ====================== PART 2 ====================== -->
+    <section class="section" id="part2">
+      <h2>Part 2 — Applications</h2>
+      <p>Unsharp masking for sharpening, hybrid images, Gaussian/Laplacian <em>stacks</em>, and multi-resolution blending.</p>
+    </section>
+
+    <!-- 2.1 -->
+    <section class="section" id="part2-1">
+      <h2>Part 2.1 — Image “Sharpening” (Unsharp Mask)</h2>
+      <p><strong>Idea.</strong> Decompose image as <span class="kbd">I = low + high</span> using a Gaussian low-pass <span class="kbd">G(σ)</span>. Boost high frequencies: <span class="kbd">I' = I + α·high = (1+α)·I − α·(I*G)</span>. As a single convolution: <span class="kbd">K<sub>unsharp</sub> = (1+α)·δ − α·G</span>, then <span class="kbd">I' = I * K<sub>unsharp</sub></span>.</p>
+
+      <div class="answer">
+        <div class="label">What to show</div>
+        <ul>
+          <li>On <em>Taj Mahal</em> (and one more photo): blurred <span class="kbd">low = I*G</span>, high <span class="kbd">I−low</span> (visualized), and sharpened results for a couple of <span class="kbd">α</span>.</li>
+          <li>Evaluation: take a sharp image → blur → re-sharpen. Compare with the original.</li>
+        </ul>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure"><img src="p2/taj_original.jpg" alt="Taj original"/><figcaption class="figcap">Original (Taj)</figcaption></figure>
+        <figure class="figure"><img src="p2/p21_taj_low.png" alt="Taj low"/><figcaption class="figcap">Low-pass (blur)</figcaption></figure>
+        <figure class="figure"><img src="p2/p21_taj_high_vis.png" alt="Taj high"/><figcaption class="figcap">High-freq (scaled to view)</figcaption></figure>
+        <figure class="figure"><img src="p2/p21_taj_unsharp_twopass.png" alt="Taj sharpened"/><figcaption class="figcap">Sharpened (two-pass)</figcaption></figure>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure"><img src="p2/p21_taj_unsharp_singleconv.png" alt="Taj singleconv"/><figcaption class="figcap">Single-conv unsharp (equivalent)</figcaption></figure>
+        <figure class="figure"><img src="p2/p21_lizard_low.png" alt="Other low"/><figcaption class="figcap">Other image: low-pass</figcaption></figure>
+        <figure class="figure"><img src="p2/p21_lizard_high_vis.png" alt="Other high"/><figcaption class="figcap">Other image: high-freq</figcaption></figure>
+        <figure class="figure"><img src="p2/p21_lizard_unsharp.png" alt="Other sharpened"/><figcaption class="figcap">Other image: sharpened</figcaption></figure>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure"><img src="p2/p21_taj_amt_0_5.png" alt="α=0.5"/><figcaption class="figcap">α = 0.5</figcaption></figure>
+        <figure class="figure"><img src="p2/p21_taj_amt_1_0.png" alt="α=1.0"/><figcaption class="figcap">α = 1.0</figcaption></figure>
+        <figure class="figure"><img src="p2/p21_taj_amt_1_5.png" alt="α=1.5"/><figcaption class="figcap">α = 1.5</figcaption></figure>
+        <figure class="figure"><img src="p2/p21_taj_amt_2_0.png" alt="α=2.0"/><figcaption class="figcap">α = 2.0</figcaption></figure>
+      </div>
+
+      <div class="answer">
+        <div class="label">Observation</div>
+        <p>Small α cleans haze and restores crisp edges; very large α amplifies noise and halos near strong contrasts. Matching blur <span class="kbd">σ</span> to the image’s softness is key.</p>
+      </div>
+    </section>
+
+    <!-- 2.2 -->
+    <section class="section" id="part2-2">
+      <h2>Part 2.2 — Hybrid Images</h2>
+      <p>Blend the high-frequency component of one image with the low-frequency component of another. Up close you perceive the high-frequency subject; at a distance the low-frequency subject dominates.</p>
+
+      <div class="callout">
+        <strong>Pipeline</strong>: align → high-pass <span class="kbd">im_high − im_high*G(σ<sub>high</sub>)</span> → low-pass <span class="kbd">im_low*G(σ<sub>low</sub>)</span> → add → analyze FFTs.
+      </div>
+
+      <h3 style="margin-top:8px">Example A — Derek + Nutmeg</h3>
+      <div class="gallery">
+        <figure class="figure"><img src="p22_pair3_im1.png" alt="im1"/><figcaption class="figcap">High-freq source (aligned)</figcaption></figure>
+        <figure class="figure"><img src="p22_pair3_im2.png" alt="im2"/><figcaption class="figcap">Low-freq source (aligned)</figcaption></figure>
+        <figure class="figure"><img src="p22_pair3_highpass_vis.png" alt="hp vis"/><figcaption class="figcap">High-pass (vis)</figcaption></figure>
+        <figure class="figure"><img src="p22_pair3_lowpass.png" alt="lp"/><figcaption class="figcap">Low-pass</figcaption></figure>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure"><img src="p22_pair3_hybrid.png" alt="hybrid"/><figcaption class="figcap">Hybrid image</figcaption></figure>
+        <figure class="figure"><img src="p22_pair3_fft_im1.png" alt="fft im1"/><figcaption class="figcap">FFT (im1)</figcaption></figure>
+        <figure class="figure"><img src="p22_pair3_fft_im2.png" alt="fft im2"/><figcaption class="figcap">FFT (im2)</figcaption></figure>
+        <figure class="figure"><img src="p22_pair3_fft_hybrid.png" alt="fft hyb"/><figcaption class="figcap">FFT (hybrid)</figcaption></figure>
+      </div>
+
+      <h3>Example B — Pair 1</h3>
+      <div class="gallery">
+        <figure class="figure"><img src="p22_pair1_im1.png" alt="pair1 im1"/><figcaption class="figcap">Input A</figcaption></figure>
+        <figure class="figure"><img src="p22_pair1_im2.png" alt="pair1 im2"/><figcaption class="figcap">Input B</figcaption></figure>
+        <figure class="figure"><img src="p22_pair1_hybrid.png" alt="pair1 hyb"/><figcaption class="figcap">Hybrid</figcaption></figure>
+        <figure class="figure"><img src="p22_pair1_fft_hybrid.png" alt="pair1 fft"/><figcaption class="figcap">FFT (hybrid)</figcaption></figure>
+      </div>
+
+      <h3>Example C — Pair 2</h3>
+      <div class="gallery">
+        <figure class="figure"><img src="p22_pair2_im1.png" alt="pair2 im1"/><figcaption class="figcap">Input A</figcaption></figure>
+        <figure class="figure"><img src="p22_pair2_im2.png" alt="pair2 im2"/><figcaption class="figcap">Input B</figcaption></figure>
+        <figure class="figure"><img src="p22_pair2_hybrid.png" alt="pair2 hyb"/><figcaption class="figcap">Hybrid</figcaption></figure>
+        <figure class="figure"><img src="p22_pair2_fft_hybrid.png" alt="pair2 fft"/><figcaption class="figcap">FFT (hybrid)</figcaption></figure>
+      </div>
+
+      <div class="answer">
+        <div class="label">Cutoff choices</div>
+        <p>I tuned <span class="kbd">σ<sub>high</sub></span> to preserve crisp details without halos and <span class="kbd">σ<sub>low</sub></span> to keep global structure. Better alignment → stronger hybrid illusion.</p>
+      </div>
+    </section>
+
+    <!-- 2.3 -->
+    <section class="section" id="part2-3">
+      <h2>Part 2.3 — Gaussian & Laplacian Stacks (No Downsampling)</h2>
+      <p>Stacks keep full resolution at each level (unlike pyramids). Gaussian stack: repeated blur; Laplacian stack: differences of adjacent Gaussian levels, final residual low-pass kept in the last level.</p>
+
+      <div class="gallery">
+        <figure class="figure"><img src="p23_orange_G0.png" alt="G0"/><figcaption class="figcap">G0</figcaption></figure>
+        <figure class="figure"><img src="p23_orange_G1.png" alt="G1"/><figcaption class="figcap">G1</figcaption></figure>
+        <figure class="figure"><img src="p23_orange_G2.png" alt="G2"/><figcaption class="figcap">G2</figcaption></figure>
+        <figure class="figure"><img src="p23_orange_G3.png" alt="G3"/><figcaption class="figcap">G3</figcaption></figure>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure"><img src="p23_orange_L0.png" alt="L0"/><figcaption class="figcap">L0 (band-pass)</figcaption></figure>
+        <figure class="figure"><img src="p23_orange_L1.png" alt="L1"/><figcaption class="figcap">L1</figcaption></figure>
+        <figure class="figure"><img src="p23_orange_L2.png" alt="L2"/><figcaption class="figcap">L2</figcaption></figure>
+        <figure class="figure"><img src="p23_orange_L3.png" alt="L3"/><figcaption class="figcap">L3 / residual</figcaption></figure>
+      </div>
+
+      <div class="answer">
+        <div class="label">Note</div>
+        <p>Visualize Laplacians with a symmetric mapping around 0 (I use <span class="kbd">0.5 + L/(2·max|L|)</span>) to see positive/negative detail.</p>
+      </div>
+    </section>
+
+    <!-- 2.4 -->
+    <section class="section" id="part2-4">
+      <h2>Part 2.4 — Multiresolution Blending (the “Oraple”)</h2>
+      <p>Blend two images by combining their Laplacian stacks with weights from the mask’s Gaussian stack. A binary step mask (vertical/horizontal seam) already works well; irregular masks enable creative composites.</p>
+
+      <div class="callout">
+        <strong>Algorithm</strong>: build stacks for A, B, and mask M∈[0,1]. For each level <span class="kbd">k</span>, blend <span class="kbd">Lᵏ = Mᵏ·Lᵏ_A + (1−Mᵏ)·Lᵏ_B</span>. Reconstruct with the blended stack.
+      </div>
+
+      <h3 style="margin-top:8px">Recreating Szeliski Fig. 3.42</h3>
+      <div class="gallery">
+        <figure class="figure"><img src="p24_oraple_figure342_mosaic.png" alt="342 mosaic"/><figcaption class="figcap">3×4 mosaic (a…l)</figcaption></figure>
+        <figure class="figure"><img src="p24_oraple_soft_figure342_soft_mosaic.png" alt="342 soft"/><figcaption class="figcap">Soft-mask variant</figcaption></figure>
+      </div>
+
+      <h3>Straight-seam Oraple</h3>
+      <div class="gallery">
+        <figure class="figure"><img src="p24_oraple_A.png" alt="apple"/><figcaption class="figcap">A (apple)</figcaption></figure>
+        <figure class="figure"><img src="p24_oraple_B.png" alt="orange"/><figcaption class="figcap">B (orange)</figcaption></figure>
+        <figure class="figure"><img src="p24_oraple_mask.png" alt="mask"/><figcaption class="figcap">Step mask (Gaussian stack used)</figcaption></figure>
+        <figure class="figure"><img src="p24_oraple_blend.png" alt="blend"/><figcaption class="figcap">Blended result</figcaption></figure>
+      </div>
+
+      <h3>Irregular-mask Blends</h3>
+      <div class="gallery">
+        <figure class="figure"><img src="p24_custom1_mask.png" alt="mask1"/><figcaption class="figcap">Custom mask #1</figcaption></figure>
+        <figure class="figure"><img src="p24_custom1_blend.png" alt="blend1"/><figcaption class="figcap">Blend #1</figcaption></figure>
+        <figure class="figure"><img src="p24_custom2_mask.png" alt="mask2"/><figcaption class="figcap">Custom mask #2</figcaption></figure>
+        <figure class="figure"><img src="p24_custom2_blend.png" alt="blend2"/><figcaption class="figcap">Blend #2</figcaption></figure>
+      </div>
+
+      <h3>“Eye in Palm” (irregular ellipse mask)</h3>
+      <div class="gallery">
+        <figure class="figure"><img src="p24_eye_in_palm_hand.png" alt="hand"/><figcaption class="figcap">Hand (base)</figcaption></figure>
+        <figure class="figure"><img src="p24_eye_in_palm_eye_canvas.png" alt="eye canvas"/><figcaption class="figcap">Eye layer (placed)</figcaption></figure>
+        <figure class="figure"><img src="p24_eye_in_palm_mask.png" alt="mask"/><figcaption class="figcap">Mask (ellipse)</figcaption></figure>
+        <figure class="figure"><img src="p24_eye_in_palm_blend.png" alt="final"/><figcaption class="figcap">Final multi-res blend</figcaption></figure>
+      </div>
+
+      <div class="answer">
+        <div class="label">Figure 10-style visualization</div>
+        <p>I include per-level blended Laplacians: <span class="kbd">p24_oraple_blend_L0.png … L<em>N−1</em>.png</span>, plus masked inputs for clarity.</p>
+      </div>
+    </section>
+
+
+    
   </main>
 
   <footer class="container footer">
