@@ -188,3 +188,8 @@ pre.codeblock{
 @media (max-width: 860px){ .grid.grid-lg { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 540px){ .grid.grid-lg { grid-template-columns: 1fr; } }
 
+.figure-center{
+  max-width: 780px;   
+  margin-inline: auto;
+}
+
