@@ -320,37 +320,32 @@ print(f"max|custom - scipy| = {err:.2e}")</code></pre>
 
       <h3 style="margin-top:8px">Recreating Szeliski Fig. 3.42</h3>
       <div class="gallery">
-        <figure class="figure"><img src="p24_oraple_figure342_mosaic.png" alt="342 mosaic"/><figcaption class="figcap">3×4 mosaic (a…l)</figcaption></figure>
-        <figure class="figure"><img src="p24_oraple_soft_figure342_soft_mosaic.png" alt="342 soft"/><figcaption class="figcap">Soft-mask variant</figcaption></figure>
+        <figure class="figure"><img src="p2/p24_oraple_figure342_mosaic.png" alt="342 mosaic"/><figcaption class="figcap">3×4 mosaic (a…l)</figcaption></figure>
+        <figure class="figure"><img src="p2/p24_oraple_soft_figure342_soft_mosaic.png" alt="342 soft"/><figcaption class="figcap">Soft-mask variant</figcaption></figure>
       </div>
 
       <h3>Straight-seam Oraple</h3>
       <div class="gallery">
-        <figure class="figure"><img src="p24_oraple_A.png" alt="apple"/><figcaption class="figcap">A (apple)</figcaption></figure>
-        <figure class="figure"><img src="p24_oraple_B.png" alt="orange"/><figcaption class="figcap">B (orange)</figcaption></figure>
-        <figure class="figure"><img src="p24_oraple_mask.png" alt="mask"/><figcaption class="figcap">Step mask (Gaussian stack used)</figcaption></figure>
-        <figure class="figure"><img src="p24_oraple_blend.png" alt="blend"/><figcaption class="figcap">Blended result</figcaption></figure>
+        <figure class="figure"><img src="p2/p24_oraple_A.png" alt="apple"/><figcaption class="figcap">A (orange)</figcaption></figure>
+        <figure class="figure"><img src="p2/p24_oraple_B.png" alt="orange"/><figcaption class="figcap">B (apple)</figcaption></figure>
+        <figure class="figure"><img src="p2/p24_oraple_mask_soft.png" alt="mask"/><figcaption class="figcap">Step mask (Gaussian stack used)</figcaption></figure>
+        <figure class="figure"><img src="p2/p24_oraple_blend.png" alt="blend"/><figcaption class="figcap">Blended result</figcaption></figure>
       </div>
 
-      <h3>Irregular-mask Blends</h3>
+      <h3>Straight-seam Lebrobe</h3>
       <div class="gallery">
-        <figure class="figure"><img src="p24_custom1_mask.png" alt="mask1"/><figcaption class="figcap">Custom mask #1</figcaption></figure>
-        <figure class="figure"><img src="p24_custom1_blend.png" alt="blend1"/><figcaption class="figcap">Blend #1</figcaption></figure>
-        <figure class="figure"><img src="p24_custom2_mask.png" alt="mask2"/><figcaption class="figcap">Custom mask #2</figcaption></figure>
-        <figure class="figure"><img src="p24_custom2_blend.png" alt="blend2"/><figcaption class="figcap">Blend #2</figcaption></figure>
+        <figure class="figure"><img src="p2/p24_lebrobe_A.png" alt="apple"/><figcaption class="figcap">A (lebron)</figcaption></figure>
+        <figure class="figure"><img src="p2/p24_lebrobe_B.png" alt="orange"/><figcaption class="figcap">B (kobe)</figcaption></figure>
+        <figure class="figure"><img src="p2/p24_lebrobe_mask_soft.png" alt="mask"/><figcaption class="figcap">Step mask (Gaussian stack used)</figcaption></figure>
+        <figure class="figure"><img src="p2/p24_lebrobe_blend.png" alt="blend"/><figcaption class="figcap">Blended result</figcaption></figure>
       </div>
 
       <h3>“Eye in Palm” (irregular ellipse mask)</h3>
       <div class="gallery">
-        <figure class="figure"><img src="p24_eye_in_palm_hand.png" alt="hand"/><figcaption class="figcap">Hand (base)</figcaption></figure>
-        <figure class="figure"><img src="p24_eye_in_palm_eye_canvas.png" alt="eye canvas"/><figcaption class="figcap">Eye layer (placed)</figcaption></figure>
-        <figure class="figure"><img src="p24_eye_in_palm_mask.png" alt="mask"/><figcaption class="figcap">Mask (ellipse)</figcaption></figure>
-        <figure class="figure"><img src="p24_eye_in_palm_blend.png" alt="final"/><figcaption class="figcap">Final multi-res blend</figcaption></figure>
-      </div>
-
-      <div class="answer">
-        <div class="label">Figure 10-style visualization</div>
-        <p>I include per-level blended Laplacians: <span class="kbd">p24_oraple_blend_L0.png … L<em>N−1</em>.png</span>, plus masked inputs for clarity.</p>
+        <figure class="figure"><img src="p2/hand.png" alt="hand"/><figcaption class="figcap">Hand (base)</figcaption></figure>
+        <figure class="figure"><img src="p2/eye.png" alt="eye"/><figcaption class="figcap">Eye (placed)</figcaption></figure>
+        <figure class="figure"><img src="p2/p24_eye_in_palm_mask.png" alt="mask"/><figcaption class="figcap">Mask (ellipse)</figcaption></figure>
+        <figure class="figure"><img src="p2/p24_eye_in_palm_blend.png" alt="final"/><figcaption class="figcap">Final multi-res blend</figcaption></figure>
       </div>
     </section>
 
