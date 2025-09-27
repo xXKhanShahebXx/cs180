@@ -41,9 +41,9 @@
       </ul>
 
       <!-- Key code snippets (concise “idea” only) -->
-      <div class="gallery">
-        <div class="figure">
-<pre class="codeblock"><code># (Idea) Flip kernel → zero-pad → 4 nested loops
+<div class="gallery grid-code">
+  <figure class="figure">
+    <pre class="codeblock"><code># (Idea) Flip kernel → zero-pad → 4 nested loops
 def conv2d_4loop(img, K, padding):
     k = np.flipud(np.fliplr(K))
     ph, pw = padding if isinstance(padding, tuple) else (padding, padding)
@@ -58,11 +58,11 @@ def conv2d_4loop(img, K, padding):
                     s += x[i+u, j+v] * k[u, v]
             out[i, j] = s
     return out</code></pre>
-          <div class="figcap">Naive 4-loop: clearest but slowest (Python loops over pixels and kernel).</div>
-        </div>
+    <figcaption class="figcap">Naive 4-loop: clearest but slowest (Python loops over pixels and kernel).</figcaption>
+  </figure>
 
-        <div class="figure">
-<pre class="codeblock"><code># (Idea) Same setup → loop over pixels only → vectorized inner product
+  <figure class="figure">
+    <pre class="codeblock"><code># (Idea) Same setup → loop over pixels only → vectorized inner product
 def conv2d_2loop(img, K, padding):
     k = np.flipud(np.fliplr(K))
     ph, pw = padding if isinstance(padding, tuple) else (padding, padding)
@@ -72,11 +72,11 @@ def conv2d_2loop(img, K, padding):
     for i in range(H):
         for j in range(W):
             patch = x[i:i+kh, j:j+kw]
-            out[i, j] = np.sum(patch * k)   # NumPy does the heavy lifting
+            out[i, j] = np.sum(patch * k)   
     return out</code></pre>
-          <div class="figcap">2-loop: much faster in practice; inner work is NumPy-vectorized.</div>
-        </div>
-      </div>
+    <figcaption class="figcap">2-loop: much faster in practice; inner work is NumPy-vectorized.</figcaption>
+  </figure>
+</div>
 
       <div class="figure" style="margin-top:14px">
 <pre><code># (Idea) Quick correctness check vs SciPy (same padding)
@@ -90,17 +90,6 @@ print(f"max|custom - scipy| = {err:.2e}")</code></pre>
         <div class="label">Answer — Runtime & Boundary Handling</div>
         <p><strong>Runtime.</strong> All are <span class="kbd">O(H·W·kh·kw)</span>. In practice: <em>4-loop</em> (slowest) ≪ <em>2-loop</em> ≪ SciPy’s <span class="kbd">convolve2d</span> (fastest, optimized C/FFT). </p>
         <p><strong>Boundaries.</strong> I pad with zeros to keep output size the same (<span class="kbd">np.pad(..., mode='constant', constant_values=0)</span>). For fair comparison I call SciPy with <span class="kbd">mode='same', boundary='fill', fillvalue=0</span>. (Alternatives like <span class="kbd">reflect</span> can reduce edge artifacts.)</p>
-      </div>
-
-      <div class="gallery" style="margin-top:14px">
-        <figure class="figure">
-          <img src="p12_gx_fd.png" alt="Example conv output (finite difference x-derivative)"/>
-          <figcaption class="figcap">Example: x-derivative via custom convolution.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p12_gy_fd.png" alt="Example conv output (finite difference y-derivative)"/>
-          <figcaption class="figcap">Example: y-derivative via custom convolution.</figcaption>
-        </figure>
       </div>
     </section>
 
