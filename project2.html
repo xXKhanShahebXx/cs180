@@ -237,8 +237,15 @@ print(f"max|custom - scipy| = {err:.2e}")</code></pre>
       <div class="gallery">
         <figure class="figure"><img src="p2/p22_pair3_hybrid.png" alt="hybrid"/><figcaption class="figcap">Hybrid image</figcaption></figure>
         <figure class="figure"><img src="p2/p22_pair3_fft_im1.png" alt="fft im1"/><figcaption class="figcap">FFT (im1)</figcaption></figure>
+        <figure class="figure"><img src="p2/p22_pair3_fft_highpass.png" alt="FFT high-pass"/><figcaption class="figcap">FFT (high-pass of im1)</figcaption></figure>
         <figure class="figure"><img src="p2/p22_pair3_fft_im2.png" alt="fft im2"/><figcaption class="figcap">FFT (im2)</figcaption></figure>
+        <figure class="figure"><img src="p2/p22_pair3_fft_lowpass.png" alt="FFT low-pass"/><figcaption class="figcap">FFT (low-pass of im2)</figcaption></figure>
         <figure class="figure"><img src="p2/p22_pair3_fft_hybrid.png" alt="fft hyb"/><figcaption class="figcap">FFT (hybrid)</figcaption></figure>
+      </div>
+
+      <div class="answer">
+          <div class="label">Cutoff (σ) used</div>
+          <p>σ<sub>high</sub> = 4.0, σ<sub>low</sub> = 10.0 (tuned by visual inspection for crisp HF + stable LF).</p>
       </div>
 
       <h3>Example B — Pair 1</h3>
