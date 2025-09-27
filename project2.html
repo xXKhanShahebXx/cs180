@@ -134,52 +134,41 @@ print(f"max|custom - scipy| = {err:.2e}")</code></pre>
 
       <div class="gallery">
         <figure class="figure">
-          <img src="p13_gx_smooth.png" alt="Smoothed x-derivative"/>
+          <img src="p2/p13_gx_smooth.png" alt="Smoothed x-derivative"/>
           <figcaption class="figcap">Smoothed x-derivative (route 1).</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p13_gy_smooth.png" alt="Smoothed y-derivative"/>
+          <img src="p2/p13_gy_smooth.png" alt="Smoothed y-derivative"/>
           <figcaption class="figcap">Smoothed y-derivative (route 1).</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p13_gradmag_smooth.png" alt="Grad magnitude after smoothing"/>
+          <img src="p2/p13_gradmag_smooth.png" alt="Grad magnitude after smoothing"/>
           <figcaption class="figcap">Gradient magnitude after smoothing.</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p13_edges_smooth.png" alt="Edges after smoothing"/>
+          <img src="p2/p13_edges_smooth.png" alt="Edges after smoothing"/>
           <figcaption class="figcap">Binarized edges (same percentile for parity).</figcaption>
         </figure>
       </div>
 
       <div class="gallery">
         <figure class="figure">
-          <img src="p13_gx_dog.png" alt="DoG x-derivative"/>
+          <img src="p2/p13_gx_dog.png" alt="DoG x-derivative"/>
           <figcaption class="figcap">DoG x-derivative (route 2).</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p13_gy_dog.png" alt="DoG y-derivative"/>
+          <img src="p2/p13_gy_dog.png" alt="DoG y-derivative"/>
           <figcaption class="figcap">DoG y-derivative (route 2).</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p13_gradmag_dog.png" alt="DoG grad magnitude"/>
+          <img src="p2/p13_gradmag_dog.png" alt="DoG grad magnitude"/>
           <figcaption class="figcap">DoG gradient magnitude (normalized).</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p13_edges_dog.png" alt="DoG edges"/>
+          <img src="p2/p13_edges_dog.png" alt="DoG edges"/>
           <figcaption class="figcap">Binarized edges from DoG magnitude.</figcaption>
         </figure>
       </div>
-    </section>
-
-    <!-- Repro notes -->
-    <section class="section" id="repro">
-      <h2>Reproducibility Notes</h2>
-      <ul>
-        <li>Images saved by the script are referenced directly (e.g., <span class="kbd">p12_gx_fd.png</span>).</li>
-        <li>Padding strategy in my code: zero padding via <span class="kbd">np.pad(..., mode='constant', constant_values=0)</span> with widths set to keep “same-size” outputs.</li>
-        <li>Normalization helper: <span class="kbd">normalize01</span> maps arrays to [0,1] for saving/visualization; <span class="kbd">to_uint8</span> writes PNGs.</li>
-        <li>Thresholding: <span class="kbd">binarize(..., percentile=90)</span>; tweak percentile to taste.</li>
-      </ul>
     </section>
   </main>
 
