@@ -43,7 +43,7 @@
       <!-- Key code snippets (concise “idea” only) -->
       <div class="gallery">
         <div class="figure">
-<pre><code># (Idea) Flip kernel → zero-pad → 4 nested loops
+<pre class="codeblock"><code># (Idea) Flip kernel → zero-pad → 4 nested loops
 def conv2d_4loop(img, K, padding):
     k = np.flipud(np.fliplr(K))
     ph, pw = padding if isinstance(padding, tuple) else (padding, padding)
@@ -62,7 +62,7 @@ def conv2d_4loop(img, K, padding):
         </div>
 
         <div class="figure">
-<pre><code># (Idea) Same setup → loop over pixels only → vectorized inner product
+<pre class="codeblock"><code># (Idea) Same setup → loop over pixels only → vectorized inner product
 def conv2d_2loop(img, K, padding):
     k = np.flipud(np.fliplr(K))
     ph, pw = padding if isinstance(padding, tuple) else (padding, padding)
