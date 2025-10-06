@@ -156,34 +156,27 @@ H_set2 = [
 </div>
 
 
-      <div class="gallery">
-        <figure class="figure"><img src="p3/a3_set1_src.jpg" alt="Source (Set 1)"/><figcaption class="figcap">Source image (Set 1).</figcaption></figure>
-        <figure class="figure"><img src="p3/a3_set1_warp_nn.png" alt="Warped — NN"/><figcaption class="figcap">Warped with nearest-neighbor.</figcaption></figure>
-        <figure class="figure"><img src="p3/a3_set1_warp_bil.png" alt="Warped — Bilinear"/><figcaption class="figcap">Warped with bilinear.</figcaption></figure>
-      </div>
-
-      <div class="gallery">
-        <figure class="figure"><img src="p3/a3_set2_src.jpg" alt="Source (Set 2)"/><figcaption class="figcap">Source image (Set 2).</figcaption></figure>
-        <figure class="figure"><img src="p3/a3_set2_warp_nn.png" alt="Warped — NN 2"/><figcaption class="figcap">NN warp.</figcaption></figure>
-        <figure class="figure"><img src="p3/a3_set2_warp_bil.png" alt="Warped — Bilinear 2"/><figcaption class="figcap">Bilinear warp.</figcaption></figure>
-      </div>
-
       <h3>Rectification</h3>
-      <p>I pick four points on a known rectangle and map them to a canonical square. This validates both <span class="kbd">computeH</span> and the warpers.</p>
+<p> I click four corners of a planar rectangle in top left → top right → bottom right → bottom left order (or pass <span class="kbd">src_pts</span>). Unless <span class="kbd">n_w</span>/<span class="kbd">n_h</span> are given, I estimate the target width/height from the clicked edge lengths, define a canonical rectangle [0,0] to [W-1,H-1], solve <span class="kbd">H = computeH(src, dst)</span>, and inverse-warp (<span class="kbd">bilinear</span> by default). This validates both <span class="kbd">computeH</span> and the warpers.</p>
       <div class="gallery">
-        <figure class="figure"><img src="p3/a3_rectify_orig.jpg" alt="Rectification — original"/><figcaption class="figcap">Original with clicked corners.</figcaption></figure>
-        <figure class="figure"><img src="p3/a3_rectify_target.png" alt="Rectification — target square"/><figcaption class="figcap">Target square (e.g., [0,0],[1,0],[1,1],[0,1]).</figcaption></figure>
-        <figure class="figure"><img src="p3/a3_rectify_result.png" alt="Rectification — result"/><figcaption class="figcap">Rectified output.</figcaption></figure>
+        <figure class="figure"><img src="p3/checker_marked.png" alt="Rectification — original"/><figcaption class="figcap">Original with clicked corners.</figcaption></figure>
+        <figure class="figure"><img src="p3/rectified_checker_nn.png" alt="Rectification — Nearest Neighbor"/><figcaption class="figcap">Rectification with Nearest Neighbor interpolation.</figcaption></figure>
+        <figure class="figure"><img src="p3/rectified_checker_bi.png" alt="Rectification — Bilinear"/><figcaption class="figcap">Rectification with Bilinear interpolation.</figcaption></figure>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure"><img src="p3/table_marked.jpg" alt="Rectification — original"/><figcaption class="figcap">Original with clicked corners.</figcaption></figure>
+        <figure class="figure"><img src="p3/rectified_table_nn.png" alt="Rectification — Nearest Neighbor"/><figcaption class="figcap">Rectification with Nearest Neighbor interpolation.</figcaption></figure>
+        <figure class="figure"><img src="p3/rectified_table_bi.png" alt="Rectification — Bilinear"/><figcaption class="figcap">Rectification with Bilinear interpolation.</figcaption></figure>
       </div>
 
       <div class="answer">
-        <div class="label">Trade-offs & implementation tips</div>
+        <div class="label">Trade-offs</div>
         <ul>
-          <li><strong>Nearest</strong>: fastest; jaggies at strong edges; good for quick previews.</li>
-          <li><strong>Bilinear</strong>: smoother edges; minor blur; preferable for final mosaics.</li>
-          <li><strong>Bounding box</strong>: transform source corners via <span class="kbd">H</span> to size the canvas.</li>
-          <li><strong>Alpha</strong>: mark valid samples; use later for blending. Unassigned pixels can be left as 0 with alpha=0.</li>
-          <li><strong>Coordinate convention</strong>: treat pixel centers as integer coordinates for simpler math.</li>
+          <li><strong>Speed:</strong> Nearest neighbor (NN) does a single lookup per pixel; bilinear mixes 4 neighbors. On the same canvas, NN is typically ~1.3–2× faster.</li>
+          <li><strong>Quality:</strong> NN introduces stair-stepping and aliasing at edges; bilinear reduces jaggies and yields smoother seams but slightly softens fine texture.</li>
+          <li><strong>Use NN</strong> for quick previews/debugging when you want the fastest warp.</li>
+          <li><strong>Use bilinear</strong> for final renderings/mosaics to avoid jagged seams; expect a modest speed cost and slight smoothing.</li>
         </ul>
       </div>
     </section>
