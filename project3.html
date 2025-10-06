@@ -3,29 +3,217 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Project 3</title>
+  <title>Project 3 — [Auto]Stitching & Photo Mosaics</title>
   <meta name="theme-color" content="#0f1226"/>
   <link rel="stylesheet" href="assets/style.css?v=2"/>
-
 </head>
 <body>
-<nav class="topbar">
-  <div class="container" style="padding:10px 24px">
-    <div class="breadcrumb">
-      <a href="index.html">← Back to Home</a>
-      <span>·</span>
-      <span>Project 3</span>
+  <!-- Top breadcrumb -->
+  <nav class="topbar">
+    <div class="container" style="padding:10px 24px">
+      <div class="breadcrumb">
+        <a href="index.html">← Back to Home</a>
+        <span>·</span>
+        <span>Project 3 — [Auto]Stitching & Photo Mosaics</span>
+      </div>
     </div>
-  </div>
-</nav>
-<main class="container">
-  <section class="section">
-    <h2>Project 3</h2>
-    <p>This page is a placeholder. Duplicate the structure from Project 0 or write your own.</p>
-  </section>
-</main>
-<footer class="container footer">
-  <div>Project 3 · CS180/280A</div>
-</footer>
+  </nav>
+
+  <main class="container">
+    <!-- Intro / Overview -->
+    <section class="section" id="overview">
+      <h1 class="proj-title">Part 3A — Image Warping & Mosaicing</h1>
+      <p>In this part of the project I capture overlapping photographs, estimate projective transforms (homographies) from point correspondences, implement inverse warps with nearest-neighbor and bilinear interpolation, and finally blend the registered images into seamless mosaics. I verify correctness by rectifying planar regions.</p>
+      <div class="callout"><strong>Deliverables checklist</strong>
+        <ul>
+          <li>A.1: Two (or more) shooting sets with projective relationships (fixed COP).
+          <li>A.2: <span class="kbd">computeH(im1_pts, im2_pts)</span> + correspondence visualizations, linear system, recovered <span class="kbd">H</span>.</li>
+          <li>A.3: <span class="kbd">warpImageNearestNeighbor</span> and <span class="kbd">warpImageBilinear</span> (inverse warping) + rectification examples.</li>
+          <li>A.4: Three mosaics with source images and weighted/blended results; explain the procedure.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ====================== A.1 ====================== -->
+    <section class="section" id="a1">
+      <h2>A.1 — Shoot the Pictures</h2>
+      <p><strong>Setup.</strong> I fix the center of projection and rotate the camera to capture overlapping views. I avoid strong lens distortion and shoot scenes with plentiful texture/structure. Each sequence has ~40–70% overlap.</p>
+      <div class="callout"><strong>Process</strong>
+      <ul>
+      <li>Fix the <em>center of projection</em> (rotate the camera about a pivot; avoid translation) to ensure a projective relationship.</li>
+      <li>Target <strong>40–70% overlap</strong> so enough distinct features are shared across images.</li>
+      <li>Shoot quickly and, if possible, lock exposure/focus to minimize lighting drift between frames.</li>
+      <li>Prefer textured/static scenes; avoid moving subjects when you can.</li>
+      <li>Avoid fisheye/strong barrel distortion; moderate/wide angle is fine.</li>
+      <li>Capture <strong>≥ 2 sets</strong>; keep orientation consistent and filenames organized for the report.</li>
+      </ul>
+      </div>
+      
+      <h3 style="margin-top:12px">Set 1</h3>
+      <div class="gallery">
+        <figure class="figure"><img src="p3/a1_set1_01.jpg" alt="Set 1 — Image 1"/><figcaption class="figcap">Image 1</figcaption></figure>
+        <figure class="figure"><img src="p3/a1_set1_02.jpg" alt="Set 1 — Image 2"/><figcaption class="figcap">Image 2</figcaption></figure>
+      </div>
+
+      <h3>Set 2</h3>
+      <div class="gallery">
+        <figure class="figure"><img src="p3/a1_set2_01.jpg" alt="Set 2 — Image 1"/><figcaption class="figcap">Image 1</figcaption></figure>
+        <figure class="figure"><img src="p3/a1_set2_02.jpg" alt="Set 2 — Image 2"/><figcaption class="figcap">Image 2</figcaption></figure>
+      </div>
+    </section>
+
+    <!-- ====================== A.2 ====================== -->
+    <section class="section" id="a2">
+      <h2>A.2 — Recover Homographies</h2>
+      <p>I estimate a homography <span class="kbd">H</span> such that <span class="kbd">p₁ ≃ H · p₂</span> using clicked correspondences between the two images. With <span class="kbd">n ≥ 4</span> pairs, I solve an overdetermined linear least-squares system.</p>
+
+      <div class="callout"><strong>Process</strong>
+<ol>
+<li><strong>Collect correspondences</strong> (n ≥ 8 recommended) with my <span class="kbd">collect_matches_ginput</span> helper; keep the order consistent across the two images.</li>
+<li><strong>Normalize points</strong> in each image with Hartley’s method (<span class="kbd">_normalize_points_2d</span>): translate to centroid and scale so mean distance is √2.</li>
+<li><strong>Build the linear system</strong> <span class="kbd">A h = 0</span> using <span class="kbd">_build_A_dlt</span> from the normalized pairs.</li>
+<li><strong>Solve via SVD</strong>: take the right singular vector corresponding to the smallest singular value (<span class="kbd">h = Vt[-1]</span>) and reshape to <span class="kbd">H<sub>norm</sub></span>.</li>
+<li><strong>Denormalize</strong>: <span class="kbd">H = T₂⁻¹ · H<sub>norm</sub> · T₁</span> and scale so <span class="kbd">H[2,2] = 1</span>.</li>
+<li><strong>Evaluate</strong> with per-point reprojection errors (<span class="kbd">reprojection_errors</span>) and visualize lines (<span class="kbd">show_correspondences</span>).</li>
+</ol>
+<div class="figcap">Direction: <span class="kbd">computeH(im1_pts, im2_pts)</span> maps <em>im1 → im2</em>; I keep this ordering consistent for warps and mosaics.</div>
+</div>
+      
+      <div class="gallery">
+        <figure class="figure"><img src="p3/a2_corr_set1.png" alt="Correspondences overlay — Set 1"/><figcaption class="figcap">Set 1: clicked correspondences (visualization).</figcaption></figure>
+        <figure class="figure"><img src="p3/a2_corr_set2.png" alt="Correspondences overlay — Set 2"/><figcaption class="figcap">Set 2: clicked correspondences (visualization).</figcaption></figure>
+      </div>
+
+
+      <div class="gallery">
+        <figure class="figure">
+<pre class="codeblock"><code># Recovered H (Set 1)
+H_set1 = [
+  [ +0.0000, +0.0000, +0.0000 ],
+  [ +0.0000, +0.0000, +0.0000 ],
+  [ +0.0000, +0.0000, +1.0000 ],
+]
+</code></pre>
+          <figcaption class="figcap">Recovered homography for Set 1.</figcaption>
+        </figure>
+        <figure class="figure">
+<pre class="codeblock"><code># Recovered H (Set 2)
+H_set2 = [
+  [ +0.0000, +0.0000, +0.0000 ],
+  [ +0.0000, +0.0000, +0.0000 ],
+  [ +0.0000, +0.0000, +1.0000 ],
+]
+</code></pre>
+          <figcaption class="figcap">Recovered homography for Set 2.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ====================== A.3 ====================== -->
+    <section class="section" id="a3">
+      <h2>A.3 — Warp the Images (Inverse Mapping)</h2>
+      <p>Given <span class="kbd">H</span> that maps source→target (<span class="kbd">p_t ≃ H p_s</span>), I create an output canvas, iterate over target pixels, map each location back with <span class="kbd">H⁻¹</span> into the source, and sample using either nearest-neighbor or bilinear interpolation. I also produce an <em>alpha mask</em> to signal valid samples.</p>
+
+<div class="callout"><strong>Process</strong>
+<ol>
+<li><strong>Canvas sizing</strong>: transform the four source corners through <span class="kbd">H</span> to get a tight bounding box (<span class="kbd">_output_bounds_from_H</span>), or accept a fixed <span class="kbd">output_shape</span>.</li>
+<li><strong>Grid back-projection</strong>: make a meshgrid over destination pixels, convert to homogeneous, and map back with <span class="kbd">H⁻¹</span> to get subpixel source coords.</li>
+<li><strong>Interpolation</strong>:
+<ul>
+<li><em>Nearest</em>: round (fast previews).</li>
+<li><em>Bilinear</em>: weighted 4-neighborhood (smoother seams).</li>
+</ul>
+</li>
+<li><strong>Validity mask</strong>: mark pixels whose back-projected coords fall inside the source and are finite; I return this as <em>alpha</em> for blending.</li>
+<li><strong>Dtypes</strong>: accumulate in float, then convert back to input dtype (with clipping/rounding for uint8); squeeze grayscale dims.</li>
+<li><strong>Rectification check</strong>: click four corners of a planar rectangle and map to a canonical square to verify <span class="kbd">computeH</span> + warpers.</li>
+</ol>
+</div>
+
+
+      <div class="gallery">
+        <figure class="figure"><img src="p3/a3_set1_src.jpg" alt="Source (Set 1)"/><figcaption class="figcap">Source image (Set 1).</figcaption></figure>
+        <figure class="figure"><img src="p3/a3_set1_warp_nn.png" alt="Warped — NN"/><figcaption class="figcap">Warped with nearest-neighbor.</figcaption></figure>
+        <figure class="figure"><img src="p3/a3_set1_warp_bil.png" alt="Warped — Bilinear"/><figcaption class="figcap">Warped with bilinear.</figcaption></figure>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure"><img src="p3/a3_set2_src.jpg" alt="Source (Set 2)"/><figcaption class="figcap">Source image (Set 2).</figcaption></figure>
+        <figure class="figure"><img src="p3/a3_set2_warp_nn.png" alt="Warped — NN 2"/><figcaption class="figcap">NN warp.</figcaption></figure>
+        <figure class="figure"><img src="p3/a3_set2_warp_bil.png" alt="Warped — Bilinear 2"/><figcaption class="figcap">Bilinear warp.</figcaption></figure>
+      </div>
+
+      <h3>Rectification</h3>
+      <p>I pick four points on a known rectangle and map them to a canonical square. This validates both <span class="kbd">computeH</span> and the warpers.</p>
+      <div class="gallery">
+        <figure class="figure"><img src="p3/a3_rectify_orig.jpg" alt="Rectification — original"/><figcaption class="figcap">Original with clicked corners.</figcaption></figure>
+        <figure class="figure"><img src="p3/a3_rectify_target.png" alt="Rectification — target square"/><figcaption class="figcap">Target square (e.g., [0,0],[1,0],[1,1],[0,1]).</figcaption></figure>
+        <figure class="figure"><img src="p3/a3_rectify_result.png" alt="Rectification — result"/><figcaption class="figcap">Rectified output.</figcaption></figure>
+      </div>
+
+      <div class="answer">
+        <div class="label">Trade-offs & implementation tips</div>
+        <ul>
+          <li><strong>Nearest</strong>: fastest; jaggies at strong edges; good for quick previews.</li>
+          <li><strong>Bilinear</strong>: smoother edges; minor blur; preferable for final mosaics.</li>
+          <li><strong>Bounding box</strong>: transform source corners via <span class="kbd">H</span> to size the canvas.</li>
+          <li><strong>Alpha</strong>: mark valid samples; use later for blending. Unassigned pixels can be left as 0 with alpha=0.</li>
+          <li><strong>Coordinate convention</strong>: treat pixel centers as integer coordinates for simpler math.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ====================== A.4 ====================== -->
+    <section class="section" id="a4">
+      <h2>A.4 — Blend the Images into a Mosaic</h2>
+      <p>I register images into a common frame and blend overlapping regions. I do weighted averaging via alpha masks.</p>
+      <div class="callout"><strong>Implementation details</strong>
+      <ol>
+      <li><strong>Global frame</strong>: compute a union bounding box with <span class="kbd">_global_bbox_for_mosaic</span> using each image’s <span class="kbd">H</span> to the mosaic.</li>
+      <li><strong>Warp</strong> each image with <span class="kbd">_warp_generic</span> → <span class="kbd">I_k</span> and valid mask.</li>
+      <li><strong>Alpha design</strong>: build a center-high, edge-low falloff via <span class="kbd">make_alpha_falloff(h,w,power)</span>, then warp that alpha (bilinear) into the mosaic frame.</li>
+      <li><strong>Accumulate</strong> numerator/denominator: <span class="kbd">acc += I_k · α_k</span>, <span class="kbd">wacc += α_k</span>; normalize at the end with an <span class="kbd">ε</span> for stability.</li>
+      </ol>
+      </div>
+
+      
+      <div class="callout"><strong>Procedure</strong>
+        <ol>
+          <li>Predict final mosaic bounds by transforming every source corner, allocate canvas.</li>
+          <li>Inverse-warp each image into the mosaic frame → <span class="kbd">(I_k, α_k)</span>.</li>
+          <li>Feather: <span class="kbd">I = (∑ α_k·I_k) / (∑ α_k + ε)</span>; design <span class="kbd">α_k</span> to be high in the center and fall to 0 at borders.</li>
+        </ol>
+      </div>
+
+      <!-- Mosaic 1 -->
+      <h3>Mosaic 1</h3>
+      <div class="gallery">
+        <figure class="figure"><img src="p3/a4_m1_src_1.jpg" alt="M1 source A"/><figcaption class="figcap">Source A</figcaption></figure>
+        <figure class="figure"><img src="p3/a4_m1_src_2.jpg" alt="M1 source B"/><figcaption class="figcap">Source B</figcaption></figure>
+        <figure class="figure"><img src="p3/a4_m1_blend_feather.png" alt="M1 feather blend"/><figcaption class="figcap">Feathered blend.</figcaption></figure>
+      </div>
+
+      <!-- Mosaic 2 -->
+      <h3>Mosaic 2</h3>
+      <div class="gallery">
+        <figure class="figure"><img src="p3/a4_m2_src_1.jpg" alt="M2 source A"/><figcaption class="figcap">Source A</figcaption></figure>
+        <figure class="figure"><img src="p3/a4_m2_src_2.jpg" alt="M2 source B"/><figcaption class="figcap">Source B</figcaption></figure>
+        <figure class="figure"><img src="p3/a4_m2_blend_feather.png" alt="M2 feather blend"/><figcaption class="figcap">Feathered blend.</figcaption></figure>
+      </div>
+
+      <!-- Mosaic 3 -->
+      <h3>Mosaic 3</h3>
+      <div class="gallery">
+        <figure class="figure"><img src="p3/a4_m3_src_1.jpg" alt="M3 source A"/><figcaption class="figcap">Source A</figcaption></figure>
+        <figure class="figure"><img src="p3/a4_m3_src_2.jpg" alt="M3 source B"/><figcaption class="figcap">Source B</figcaption></figure>
+        <figure class="figure"><img src="p3/a4_m3_blend_feather.png" alt="M3 feather blend"/><figcaption class="figcap">Feathered blend.</figcaption></figure>
+      </div>
+
+    </section>
+  </main>
+
+  <footer class="container footer">
+    <div>Project 3 · CS180/280A</div>
+  </footer>
 </body>
 </html>
