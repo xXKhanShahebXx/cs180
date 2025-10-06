@@ -51,14 +51,14 @@
       
       <h3 style="margin-top:12px">Set 1</h3>
       <div class="gallery">
-        <figure class="figure"><img src="p3/a1_set1_01.jpg" alt="Set 1 — Image 1"/><figcaption class="figcap">Image 1</figcaption></figure>
-        <figure class="figure"><img src="p3/a1_set1_02.jpg" alt="Set 1 — Image 2"/><figcaption class="figcap">Image 2</figcaption></figure>
+        <figure class="figure"><img src="p3/i11.jpeg" alt="Set 1 — Image 1"/><figcaption class="figcap">Image 1</figcaption></figure>
+        <figure class="figure"><img src="p3/i12.jpg" alt="Set 1 — Image 2"/><figcaption class="figcap">Image 2</figcaption></figure>
       </div>
 
       <h3>Set 2</h3>
       <div class="gallery">
-        <figure class="figure"><img src="p3/a1_set2_01.jpg" alt="Set 2 — Image 1"/><figcaption class="figcap">Image 1</figcaption></figure>
-        <figure class="figure"><img src="p3/a1_set2_02.jpg" alt="Set 2 — Image 2"/><figcaption class="figcap">Image 2</figcaption></figure>
+        <figure class="figure"><img src="p3/i21.jpeg" alt="Set 2 — Image 1"/><figcaption class="figcap">Image 1</figcaption></figure>
+        <figure class="figure"><img src="p3/i22.jpg" alt="Set 2 — Image 2"/><figcaption class="figcap">Image 2</figcaption></figure>
       </div>
     </section>
 
@@ -80,18 +80,43 @@
 </div>
       
       <div class="gallery">
-        <figure class="figure"><img src="p3/a2_corr_set1.png" alt="Correspondences overlay — Set 1"/><figcaption class="figcap">Set 1: clicked correspondences (visualization).</figcaption></figure>
-        <figure class="figure"><img src="p3/a2_corr_set2.png" alt="Correspondences overlay — Set 2"/><figcaption class="figcap">Set 2: clicked correspondences (visualization).</figcaption></figure>
+        <figure class="figure"><img src="p3/i1cor.png" alt="Correspondences overlay — Set 1"/><figcaption class="figcap">Set 1: clicked correspondences (visualization).</figcaption></figure>
+        <figure class="figure"><img src="p3/i2cor.png" alt="Correspondences overlay — Set 2"/><figcaption class="figcap">Set 2: clicked correspondences (visualization).</figcaption></figure>
       </div>
 
+<div class="figure" style="margin-top:12px">
+<pre class="codeblock"><code>Ah=b (8-unknowns with h33=1). Shapes: (20, 8) (20,)
+A[:6] =
+[[ 934.5529 1084.6354 1. 0. 0. 0. -435766.7774 -505747.7845]
+[ 0. 0. 0. 934.5529 1084.6354 1. -1011796.8268 -1174284.1128]
+[ 1069.3355 1090.5817 1. 0. 0. 0. -661817.1727 -674966.5627]
+[ 0. 0. 0. 1069.3355 1090.5817 1. -1153480.5464 -1176398.6063]
+[ 1120.87 1146.0804 1. 0. 0. 0. -762583.9786 -779735.8806]
+[ 0. 0. 0. 1120.87 1146.0804 1. -1266833.7327 -1295327.1297]]
+b[:6] = [ 466.2837 1082.6533 618.9051 1078.6891 680.3501 1130.2236]</code></pre>
+<div class="figcap">System of equations built from clicked correspondences for Set 1.</div>
+
+<div class="figure" style="margin-top:12px">
+<pre class="codeblock"><code>Ah=b (8-unknowns with h33=1). Shapes: (20, 8) (20,)
+A[:6] =
+[[ 1106.9953 1183.7402 1. 0. 0. 0. -542503.8985 -580114.187 ]
+[ 0. 0. 0. 1106.9953 1183.7402 1. -1332336.5864 -1424703.7813]
+[ 1309.1691 1266.9883 1. 0. 0. 0. -927021.9077 -897153.6599]
+[ 0. 0. 0. 1309.1691 1266.9883 1. -1663891.7259 -1610281.849 ]
+[ 1233.8495 817.0524 1. 0. 0. 0. -797874.2383 -528350.5656]
+[ 0. 0. 0. 1233.8495 817.0524 1. -1005674.0738 -665955.1596]]
+b[:6] = [ 490.0688 1203.5612 708.0994 1270.9525 646.6544 815.0703]</code></pre>
+<div class="figcap">System of equations built from clicked correspondences for Set 2.</div>
+</div>
+</div>
 
       <div class="gallery">
         <figure class="figure">
 <pre class="codeblock"><code># Recovered H (Set 1)
 H_set1 = [
-  [ +0.0000, +0.0000, +0.0000 ],
-  [ +0.0000, +0.0000, +0.0000 ],
-  [ +0.0000, +0.0000, +1.0000 ],
+  [1.886814,  -0.046117,  -1070.715416],
+  [0.348557,  1.488321,  -442.478074],
+  [0.000459,  -0.000046,  +1.0000],
 ]
 </code></pre>
           <figcaption class="figcap">Recovered homography for Set 1.</figcaption>
@@ -99,9 +124,9 @@ H_set1 = [
         <figure class="figure">
 <pre class="codeblock"><code># Recovered H (Set 2)
 H_set2 = [
-  [ +0.0000, +0.0000, +0.0000 ],
-  [ +0.0000, +0.0000, +0.0000 ],
-  [ +0.0000, +0.0000, +1.0000 ],
+  [1.870145,  -0.077241,  -1264.780423],
+  [0.359285,  1.504687, -434.648699],
+  [0.000459,  -0.000054,  +1.0000],
 ]
 </code></pre>
           <figcaption class="figcap">Recovered homography for Set 2.</figcaption>
