@@ -157,7 +157,7 @@ H_set2 = [
 
 
       <h3>Rectification</h3>
-<p> I click four corners of a planar rectangle in top left → top right → bottom right → bottom left order (or pass <span class="kbd">src_pts</span>). Unless <span class="kbd">n_w</span>/<span class="kbd">n_h</span> are given, I estimate the target width/height from the clicked edge lengths, define a canonical rectangle [0,0] to [W-1,H-1], solve <span class="kbd">H = computeH(src, dst)</span>, and inverse-warp (<span class="kbd">bilinear</span> by default). This validates both <span class="kbd">computeH</span> and the warpers.</p>
+<p> I click four corners of a planar rectangle in top left → top right → bottom right → bottom left order (or pass <span class="kbd">src_pts</span>). Unless <span class="kbd">n_w</span>/<span class="kbd">n_h</span> are given, I estimate the target width/height from the clicked edge lengths, define a canonical rectangle [0,0] to [W-1,H-1], solve <span class="kbd">H = computeH(src, dst)</span>, and inverse-warp. This validates both <span class="kbd">computeH</span> and the warpers.</p>
       <div class="gallery">
         <figure class="figure"><img src="p3/checker_marked.png" alt="Rectification — original"/><figcaption class="figcap">Original with clicked corners.</figcaption></figure>
         <figure class="figure"><img src="p3/rectified_checker_nn.png" alt="Rectification — Nearest Neighbor"/><figcaption class="figcap">Rectification with Nearest Neighbor interpolation.</figcaption></figure>
@@ -165,7 +165,7 @@ H_set2 = [
       </div>
 
       <div class="gallery">
-        <figure class="figure"><img src="p3/table_marked.jpg" alt="Rectification — original"/><figcaption class="figcap">Original with clicked corners.</figcaption></figure>
+        <figure class="figure"><img src="p3/table_marked.png" alt="Rectification — original"/><figcaption class="figcap">Original with clicked corners.</figcaption></figure>
         <figure class="figure"><img src="p3/rectified_table_nn.png" alt="Rectification — Nearest Neighbor"/><figcaption class="figcap">Rectification with Nearest Neighbor interpolation.</figcaption></figure>
         <figure class="figure"><img src="p3/rectified_table_bi.png" alt="Rectification — Bilinear"/><figcaption class="figcap">Rectification with Bilinear interpolation.</figcaption></figure>
       </div>
