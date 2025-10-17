@@ -228,6 +228,162 @@ H_set2 = [
       </div>
 
     </section>
+
+
+<!-- ===================================================== -->
+<!-- ====================== PART 3B ====================== -->
+<!-- ===================================================== -->
+
+
+<section class="section" id="b-overview">
+<h1 class="proj-title">Part 3B — Autostitching Pipeline (Harris → ANMS → 8×8 descriptors → Lowe ratio → 4‑pt RANSAC)</h1>
+<p>This section documents the <em>implemented</em> pipeline in my code (see <span class="kbd">partB.py</span>): detect corners, thin them with ANMS, build axis‑aligned MOPS‑style descriptors, match with the Lowe ratio test, and estimate a robust homography with 4‑point RANSAC. Mosaics are then produced using the Part A warping/blending.</p>
+<div class="callout"><strong>Parameters I actually use</strong>
+<ul>
+<li><strong>Detector:</strong> <span class="kbd">harris_response(k=0.04, sigma=1.5)</span> → <span class="kbd">harris_nms(thresh_rel=0.01, nms_window=3)</span> → <span class="kbd">anms(c_robust=0.9, num_points≈800)</span>.</li>
+<li><strong>Descriptor:</strong> <span class="kbd">extract_mops_descriptors(window_size=40, out_size=8, blur_sigma=1.0, margin=20)</span>, bilinear sampled grid; bias/gain normalization per patch.</li>
+<li><strong>Matching:</strong> SSD distances, <span class="kbd">ratio_thresh = 0.72</span> with <span class="kbd">mutual_best=True</span>.</li>
+<li><strong>Model:</strong> <span class="kbd">ransac_homography_4pt(pixel_thresh=3.0, max_iters=5000, confidence=0.995)</span> with symmetric transfer error; homographies fit by normalized DLT via <span class="kbd">partA.computeH</span>.</li>
+<li><strong>Mosaic:</strong> <span class="kbd">partA.mosaic_feather(images=[B,A], H_to_mosaic=[I, H], mode="bilinear", alpha_power=1.4)</span>.</li>
+</ul>
+</div>
+</section>
+
+
+<!-- ====================== B.1 ====================== -->
+<section class="section" id="b1">
+<h2>B.1 — Harris Corner Detection (+ ANMS)</h2>
+<p>I implement Harris corners followed by Adaptive Non‑Maximal Suppression to obtain a spatially uniform set of strong and well‑distributed interest points.</p>
+<div class="callout"><strong>Implementation</strong>
+<ol>
+<li><strong>Gradients:</strong> 3×3 Sobel filters (<span class="kbd">Kx</span>, <span class="kbd">Ky=Kx^T</span>) on grayscale in [0,1].</li>
+<li><strong>Structure tensor:</strong> blur <span class="kbd">I_x^2, I_y^2, I_x I_y</span> with Gaussian <span class="kbd">σ=1.5</span> via <span class="kbd">_gaussian_blur</span>.</li>
+<li><strong>Harris score:</strong> <span class="kbd">R = det(M) − k·trace(M)^2</span> with <span class="kbd">k=0.04</span>.</li>
+<li><strong>Local NMS:</strong> threshold at <span class="kbd">1% of max(R)</span> then take 3×3 local maxima (<span class="kbd">harris_nms(thresh_rel=0.01, nms_window=3)</span>).</li>
+<li><strong>ANMS:</strong> radius to stronger corners where <span class="kbd">s_j &gt; 0.9·s_i</span> (<span class="kbd">c_robust=0.9</span>); keep largest radii (<span class="kbd">num_points≈800</span> for the pipeline; 500 for compact displays).</li>
+</ol>
+</div>
+
+
+<div class="gallery">
+<figure class="figure"><img src="p3/harris_corners_no_anms.png" alt="B.1 Harris corners (pre‑ANMS)"/><figcaption class="figcap">Harris corners (pre‑ANMS). <em>Generated via</em> <span class="kbd">overlay_points(...)</span>.</figcaption></figure>
+<figure class="figure"><img src="p3/harris_corners_with_anms.png" alt="B.1 ANMS corners"/><figcaption class="figcap">Corners after ANMS (≈K up to 800). <em>overlay</em>.</figcaption></figure>
+</div>
+</section>
+
+<!-- ====================== B.2 ====================== -->
+<section class="section" id="b2">
+<h2>B.2 — Feature Descriptor Extraction (8×8 from 40×40)</h2>
+<p>I implement axis‑aligned MOPS‑style descriptors. For each ANMS corner, I sample a <strong>40×40</strong> window (bilinear), lightly blur, downsample to <strong>8×8</strong>, and bias/gain‑normalize to zero mean and unit variance.</p>
+
+
+<div class="callout"><strong>Implementation details</strong>
+<ol>
+<li><strong>Pre‑blur:</strong> convert to grayscale in [0,1], then <span class="kbd">blur_sigma = 1.0</span>.</li>
+<li><strong>Sampling grid:</strong> built by <span class="kbd">_make_descriptor_grid</span> with step <span class="kbd">40/8 = 5</span> px around the center; bilinear via <span class="kbd">_bilinear_sample_grid</span>.</li>
+<li><strong>Border policy:</strong> require full support: <span class="kbd">margin=20</span> px, so only in‑bounds points are kept.</li>
+<li><strong>Normalization:</strong> per‑patch <span class="kbd">(d−mean)/std</span> with <span class="kbd">ε=1e‑6</span>; descriptors are <span class="kbd">64‑D float32</span>.</li>
+</ol>
+</div>
+
+
+<div class="gallery">
+<figure class="figure"><img src="p3/descriptors_grid.png" alt="B.2 patch montage"/><figcaption class="figcap">Montage of 8×8 patches (display‑normalized). <em>Generated with</em> <span class="kbd">show_descriptor_patches_grid</span>.</figcaption></figure>
+</div>
+
+
+<div class="figure">
+<pre class="codeblock"><code># Key call actually used in code
+extract_mops_descriptors(
+im, points_xy,
+window_size=40, out_size=8,
+blur_sigma=1.0, margin=20,
+return_patches=True/False
+)</code></pre>
+<figcaption class="figcap">Descriptor API (as used).</figcaption>
+</div>
+</section>
+
+
+<!-- ====================== B.3 ====================== -->
+<section class="section" id="b3">
+<h2>B.3 — Feature Matching (Lowe Ratio Test)</h2>
+<p>I show the <em>matched features</em> (lines between corresponding points) for <strong>three</strong> image pairs using SSD + Lowe ratio (τ = 0.72) with mutual best.</p>
+
+
+<div class="callout"><strong>Implementation</strong>
+<ol>
+<li><strong>Distances:</strong> vectorized SSD via <span class="kbd">||a||^2 + ||b||^2 − 2 a·b</span> to form a dense cost matrix.</li>
+<li><strong>Ratio test:</strong> for each descriptor in image A, find <span class="kbd">j₁, j₂</span> in image B; accept if <span class="kbd">d₁/(d₂+ε) &lt; 0.72</span>.</li>
+<li><strong>Mutual best:</strong> require that <span class="kbd">j₁</span>'s best partner in A is that same feature.</li>
+<li><strong>Ranking:</strong> keep matches sorted by ascending ratio.</li>
+</ol>
+</div>
+
+
+<div class="gallery">
+<figure class="figure"><img src="p3/matches_im11_im12.png" alt="B.3 matches — pair 1"/><figcaption class="figcap">Pair&nbsp;1 — matched features (ratio&lt;0.72, mutual).</figcaption></figure>
+<figure class="figure"><img src="p3/matches_im21_im22.png" alt="B.3 matches — pair 2"/><figcaption class="figcap">Pair&nbsp;2 — matched features (ratio&lt;0.72, mutual).</figcaption></figure>
+<figure class="figure"><img src="p3/matches_im31_im32.png" alt="B.3 matches — pair 3"/><figcaption class="figcap">Pair&nbsp;3 — matched features (ratio&lt;0.72, mutual).</figcaption></figure>
+</div>
+</section>
+
+<!-- ====================== B.4 ====================== -->
+<section class="section" id="b4">
+<h2>B.4 — RANSAC for Robust Homography + Automatic Mosaics</h2>
+<p>From tentative matches I robustly estimate a homography with a 4‑point RANSAC and symmetric transfer error. The final <span class="kbd">H</span> is re‑fit on inliers via normalized DLT, and I stitch using the same feathered blending as Part A.</p>
+
+
+<div class="callout"><strong>RANSAC loop</strong>
+<ol>
+<li>Repeat up to <span class="kbd">max_iters = 5000</span> with RNG seeds set for reproducibility; sample 4 correspondences uniformly.</li>
+<li>Fit <span class="kbd">H</span> with <span class="kbd">partA.computeH(use_normalized_dlt=True)</span>.</li>
+<li>Score inliers by <em>symmetric</em> transfer error: forward <span class="kbd">im1→im2</span> plus backward <span class="kbd">im2→im1</span> using <span class="kbd">partA.reprojection_errors</span>; accept if <span class="kbd">error &lt; 3 px</span>.</li>
+<li>Adapt iterations using <span class="kbd">N = log(1−p)/log(1−w^s)</span> with <span class="kbd">p=0.995</span>, <span class="kbd">s=4</span>, and the current inlier rate <span class="kbd">w</span>.</li>
+<li>Refit on all inliers for <span class="kbd">H*</span>; compute final inlier mask.</li>
+</ol>
+</div>
+
+
+<div class="answer">
+<div class="label">Final settings used</div>
+<ul>
+<li><strong>Pixel threshold:</strong> ε = 3.0 px</li>
+<li><strong>Max iters:</strong> 5000 (adaptive early‑stop to reach 99.5% confidence)</li>
+<li><strong>Error metric:</strong> symmetric forward+backward reprojection</li>
+<li><strong>Blending:</strong> feather, <span class="kbd">alpha_power=1.4</span></li>
+</ul>
+</div>
+
+
+<h3>Manual vs Automatic Stitch</h3>
+<div class="gallery">
+<figure class="figure"><img src="p3/compare_manual_vs_auto.png" alt="B.4 manual mosaic"/><figcaption class="figcap">Manual correspondences vs Automatic pipeline</figcaption></figure>
+</div>
+
+<div class="answer">
+<div class="label">Comparison: what changes and why</div>
+<ul>
+<li><strong>Geometric alignment.</strong> The automatic result slightly improves line consistency at long straight edges (roofline, balcony rail posts). With dozens–hundreds of inliers, RANSAC averages out individual click noise that can bias a manual 8–12 point fit.</li>
+<li><strong>Seam visibility.</strong> Feathering is identical across both, but the automatic <span class="kbd">H</span> tends to place the seam where parallax is lower, so subtle tone/edge discontinuities are reduced compared to the manual fit.</li>
+<li><strong>Global warp.</strong> Small differences in homography (scale/shear) change the black background wedges at the canvas borders. The automatic estimate often yields a slightly more rectangular panorama footprint; any remaining wedges can be cropped identically for both.</li>
+<li><strong>Robustness to bad pairs.</strong> Manual clicks near low‑texture sky/building boundaries can introduce outliers. The automatic pipeline rejects such pairs via the Lowe ratio (τ≈0.72) and a symmetric transfer error threshold (ε≈3 px) inside RANSAC.</li>
+<li><strong>Effort vs. runtime.</strong> Manual requires careful clicking and re‑doing on mistakes; automatic is click‑free and runs in seconds on CPU for ~800 corners per image (dense SSD, ratio test, then RANSAC).</li>
+<li><strong>When manual can look better.</strong> If scenes have strong parallax (camera translated), repeated textures, or large exposure shifts, hand‑picked, well‑distributed points on the dominant plane can outperform blind matching. In those cases, tightening the ratio threshold (e.g., 0.65), lowering ε to 2–2.5 px, or increasing ANMS count can help the automatic pipeline.</li>
+</ul>
+</div>
+
+
+<h3>Automatic Mosaics</h3>
+<div class="gallery">
+<figure class="figure"><img src="p3/mosaic_auto_pair1.png" alt="B.4 auto mosaic 1"/><figcaption class="figcap">Auto mosaic #1 (<span class="kbd">mosaic_auto_pair1.png</span>).</figcaption></figure>
+<figure class="figure"><img src="p3/mosaic_auto_pair2.png" alt="B.4 auto mosaic 2"/><figcaption class="figcap">Auto mosaic #2 (<span class="kbd">mosaic_auto_pair2.png</span>).</figcaption></figure>
+</div>
+<div class="gallery">
+<figure class="figure"><img src="p3/mosaic_auto_pair3.png" alt="B.4 auto mosaic 3"/><figcaption class="figcap">Auto mosaic #3 (<span class="kbd">mosaic_auto_pair3.png</span>).</figcaption></figure>
+</div>
+</section>
+    
   </main>
 
   <footer class="container footer">
