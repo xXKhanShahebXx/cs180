@@ -237,7 +237,7 @@ H_set2 = [
 
 <section class="section" id="b-overview">
 <h1 class="proj-title">Part 3B — Autostitching Pipeline (Harris → ANMS → 8×8 descriptors → Lowe ratio → 4‑pt RANSAC)</h1>
-<p>This section documents the <em>implemented</em> pipeline in my code (see <span class="kbd">partB.py</span>): detect corners, thin them with ANMS, build axis‑aligned MOPS‑style descriptors, match with the Lowe ratio test, and estimate a robust homography with 4‑point RANSAC. Mosaics are then produced using the Part A warping/blending.</p>
+<p>This section documents the <em>implemented</em> pipeline: detect corners, thin them with ANMS, build axis‑aligned MOPS‑style descriptors, match with the Lowe ratio test, and estimate a robust homography with 4‑point RANSAC. Mosaics are then produced using the Part A warping/blending.</p>
 <div class="callout"><strong>Parameters I actually use</strong>
 <ul>
 <li><strong>Detector:</strong> <span class="kbd">harris_response(k=0.04, sigma=1.5)</span> → <span class="kbd">harris_nms(thresh_rel=0.01, nms_window=3)</span> → <span class="kbd">anms(c_robust=0.9, num_points≈800)</span>.</li>
@@ -252,7 +252,7 @@ H_set2 = [
 
 <!-- ====================== B.1 ====================== -->
 <section class="section" id="b1">
-<h2>B.1 — Harris Corner Detection (+ ANMS)</h2>
+<h2>B.1 — Harris Corner Detection + ANMS</h2>
 <p>I implement Harris corners followed by Adaptive Non‑Maximal Suppression to obtain a spatially uniform set of strong and well‑distributed interest points.</p>
 <div class="callout"><strong>Implementation</strong>
 <ol>
@@ -266,14 +266,14 @@ H_set2 = [
 
 
 <div class="gallery">
-<figure class="figure"><img src="p3/harris_corners_no_anms.png" alt="B.1 Harris corners (pre‑ANMS)"/><figcaption class="figcap">Harris corners (pre‑ANMS). <em>Generated via</em> <span class="kbd">overlay_points(...)</span>.</figcaption></figure>
-<figure class="figure"><img src="p3/harris_corners_with_anms.png" alt="B.1 ANMS corners"/><figcaption class="figcap">Corners after ANMS (≈K up to 800). <em>overlay</em>.</figcaption></figure>
+<figure class="figure"><img src="p3/harris_corners_no_anms.png" alt="B.1 Harris corners (pre‑ANMS)"/><figcaption class="figcap">Harris corners pre‑ANMS.</figcaption></figure>
+<figure class="figure"><img src="p3/harris_corners_with_anms.png" alt="B.1 ANMS corners"/><figcaption class="figcap">Corners after ANMS.</figcaption></figure>
 </div>
 </section>
 
 <!-- ====================== B.2 ====================== -->
 <section class="section" id="b2">
-<h2>B.2 — Feature Descriptor Extraction (8×8 from 40×40)</h2>
+<h2>B.2 — Feature Descriptor Extraction</h2>
 <p>I implement axis‑aligned MOPS‑style descriptors. For each ANMS corner, I sample a <strong>40×40</strong> window (bilinear), lightly blur, downsample to <strong>8×8</strong>, and bias/gain‑normalize to zero mean and unit variance.</p>
 
 
@@ -288,7 +288,7 @@ H_set2 = [
 
 <div class="figure figure-center" style="max-width: 980px;">
   <img src="p3/descriptors_grid.png" alt="B.2 patch montage"/>
-  <figcaption class="figcap">Montage of 8×8 patches (display‑normalized).</figcaption>
+  <figcaption class="figcap">Montage of 8×8 patches.</figcaption>
 </div>
 
 
@@ -300,14 +300,14 @@ window_size=40, out_size=8,
 blur_sigma=1.0, margin=20,
 return_patches=True/False
 )</code></pre>
-<figcaption class="figcap">Descriptor API (as used).</figcaption>
+<figcaption class="figcap">Descriptor API.</figcaption>
 </div>
 </section>
 
 
 <!-- ====================== B.3 ====================== -->
 <section class="section" id="b3">
-<h2>B.3 — Feature Matching (Lowe Ratio Test)</h2>
+<h2>B.3 — Feature Matching</h2>
 <p>I show the <em>matched features</em> (lines between corresponding points) for <strong>three</strong> image pairs using SSD + Lowe ratio (τ = 0.72) with mutual best.</p>
 
 
@@ -322,15 +322,15 @@ return_patches=True/False
 
 <div class="figure figure-center" style="max-width: 1040px;">
 <img src="p3/matches_im11_im12.png" alt="B.3 matches — pair 1"/>
-<figcaption class="figcap">Pair&nbsp;1 — matched features.</figcaption>
+<figcaption class="figcap">Pair&nbsp;1 matched features.</figcaption>
 </div>
 <div class="figure figure-center" style="max-width: 1040px; margin-top: 14px;">
 <img src="p3/matches_im21_im22.png" alt="B.3 matches — pair 2"/>
-<figcaption class="figcap">Pair&nbsp;2 — matched features.</figcaption>
+<figcaption class="figcap">Pair&nbsp;2 matched features.</figcaption>
 </div>
 <div class="figure figure-center" style="max-width: 1040px; margin-top: 14px;">
 <img src="p3/matches_im31_im32.png" alt="B.3 matches — pair 3"/>
-<figcaption class="figcap">Pair&nbsp;3 — matched features.</figcaption>
+<figcaption class="figcap">Pair&nbsp;3 matched features.</figcaption>
 </div>
 
 </section>
