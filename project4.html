@@ -163,11 +163,11 @@ def make_tag_object_points(tag_size: float) -&gt; np.ndarray:
 
       <div class="gallery">
         <figure class="figure">
-          <img src="p4/object_scan_01.jpg" alt="Object scan example view 1"/>
+          <img src="p4/i1.jpg" alt="Object scan example view 1"/>
           <figcaption class="figcap">Example object + tag view (front/side angle).</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p4/object_scan_02.jpg" alt="Object scan example view 2"/>
+          <img src="p4/i2.jpg" alt="Object scan example view 2"/>
           <figcaption class="figcap">Another view from a higher elevation.</figcaption>
         </figure>
       </div>
@@ -242,13 +242,13 @@ python part0.py \
 
       <div class="gallery figure-center">
         <figure class="figure">
-          <img src="p4/viser_cameras_view1.png" alt="Viser camera cloud view 1"/>
+          <img src="p4/Viser-11-13-2025_11_08_PM.png" alt="Viser camera cloud view 1"/>
           <figcaption class="figcap">
             Camera frustums orbiting the object (view 1); each frustum is textured with its corresponding image.
           </figcaption>
         </figure>
         <figure class="figure">
-          <img src="p4/viser_cameras_view2.png" alt="Viser camera cloud view 2"/>
+          <img src="p4/Viser-11-13-2025_11_09_PM.png" alt="Viser camera cloud view 2"/>
           <figcaption class="figcap">
             Same camera cloud from a different viewpoint, illustrating the coverage in elevation.
           </figcaption>
@@ -544,100 +544,67 @@ img_uint8, result = run_one(
     <section class="section" id="p13-progress">
       <h2>Part 1.3 — Training Progression on Two Images</h2>
       <p>
-        I visualize how the neural field gradually fits the image by snapshotting the full reconstruction at
-        different iterations. Below I show the evolution for both the provided test image and one of my own images.
+        I visualize how the neural field gradually fits an image by showing a ground-truth reference and a horizontal
+        strip containing reconstructions at different iterations. I do this for both the provided test image and one of
+        my own images.
       </p>
 
       <h3>Test image (provided)</h3>
       <p>
-        The test image is a natural image (e.g., <span class="kbd">wolf.jpg</span>). I train with
-        <span class="kbd">width = 128</span>, <span class="kbd">depth = 4</span>, and <span class="kbd">L = 10</span>.
+        The test image is a natural image (e.g., <span class="kbd">wolf.jpg</span>). The strip on the right shows the
+        reconstructions at increasing iterations from left to right (e.g., 0 → 50 → 100 → 300 → 600 → 1000 → 1500).
       </p>
 
       <div class="gallery">
         <figure class="figure">
-          <img src="p4/part1_test_gt.png" alt="Test image ground truth"/>
+          <img src="p4/wolf.jpg" alt="Test image ground truth"/>
           <figcaption class="figcap">Ground-truth test image.</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p4/part1_test_iter_000.png" alt="Test image reconstruction iter 0"/>
-          <figcaption class="figcap">Iteration 0 — random initialization; blurry low-frequency guess.</figcaption>
-        </figure>
-      </div>
-
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p4/part1_test_iter_100.png" alt="Test image reconstruction iter 100"/>
-          <figcaption class="figcap">Iteration 100 — coarse colors and large structures emerge.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p4/part1_test_iter_300.png" alt="Test image reconstruction iter 300"/>
-          <figcaption class="figcap">Iteration 300 — edges and mid-frequency details start appearing.</figcaption>
-        </figure>
-      </div>
-
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p4/part1_test_iter_600.png" alt="Test image reconstruction iter 600"/>
-          <figcaption class="figcap">Iteration 600 — textures sharpen; background becomes more consistent.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p4/part1_test_iter_1500.png" alt="Test image reconstruction iter 1500"/>
-          <figcaption class="figcap">Iteration 1500 — final fit; visually close to the ground truth.</figcaption>
+          <img src="p4/1_iter.png" alt="Test image training progression strip"/>
+          <figcaption class="figcap">
+            Training progression: each tile in the strip is the neural field’s reconstruction at a later iteration.
+          </figcaption>
         </figure>
       </div>
 
       <div class="answer">
         <div class="label">Observations — test image</div>
         <ul>
-          <li>The network first learns low-frequency color structure (global background and large shapes).</li>
-          <li>As training continues, higher frequency details (edges, fur texture, small contrast variations) are filled in.</li>
-          <li>By ~1,000–1,500 iterations the reconstruction is nearly indistinguishable from the source image.</li>
+          <li>Leftmost tiles in the strip show low-frequency color and coarse structure only.</li>
+          <li>As iterations increase, edges sharpen and mid-frequency details (fur, background texture) appear.</li>
+          <li>By the right end of the strip, the reconstruction is visually very close to the ground truth.</li>
         </ul>
       </div>
 
-      <h3>Your own image</h3>
+      <h3>Own image</h3>
       <p>
-        I repeat the same experiment on one of my own images (e.g., <span class="kbd">linkedin.png</span>), using the
-        same architecture and training hyperparameters. The behavior is similar, but the convergence speed and final
-        PSNR depend on how complex the image is (fine details vs. large flat regions).
+        I repeat the same experiment on one of my own images (e.g., <span class="kbd">linkedin.png</span>) using the
+        same architecture and training hyperparameters. Again, the strip shows the evolution of the reconstruction over
+        training iterations.
       </p>
 
       <div class="gallery">
         <figure class="figure">
-          <img src="p4/part1_own_gt.png" alt="Own image ground truth"/>
+          <img src="p4/linkedin.png" alt="Own image ground truth"/>
           <figcaption class="figcap">Ground-truth personal image.</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p4/part1_own_iter_000.png" alt="Own image reconstruction iter 0"/>
-          <figcaption class="figcap">Iteration 0 — random initialization.</figcaption>
-        </figure>
-      </div>
-
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p4/part1_own_iter_100.png" alt="Own image reconstruction iter 100"/>
-          <figcaption class="figcap">Iteration 100 — coarse layout and average colors are already visible.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p4/part1_own_iter_600.png" alt="Own image reconstruction iter 600"/>
-          <figcaption class="figcap">Iteration 600 — boundaries and facial features sharpen.</figcaption>
-        </figure>
-      </div>
-
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p4/part1_own_iter_1500.png" alt="Own image reconstruction iter 1500"/>
-          <figcaption class="figcap">Iteration 1500 — final reconstruction; high-frequency details closely match GT.</figcaption>
+          <img src="p4/2_iter.png" alt="Own image training progression strip"/>
+          <figcaption class="figcap">
+            Training progression on my own image: the network first captures global layout and then refines facial
+            features and small textures.
+          </figcaption>
         </figure>
       </div>
 
       <div class="answer">
         <div class="label">Observations — own image</div>
         <ul>
-          <li>Structured regions like backgrounds and clothing are captured quickly.</li>
-          <li>Human features (eyes, mouth, hair edges) require more iterations and benefit heavily from higher PE frequencies.</li>
-          <li>The model still tends to smooth extremely high-frequency textures, especially when width or <span class="kbd">L</span> are small.</li>
+          <li>Background and large clothing regions converge quickly as smooth low-frequency patterns.</li>
+          <li>Fine details like eyes, hair edges, and small shadows appear only in the later tiles of the strip.</li>
+          <li>The final tile shows that the neural field can faithfully reproduce both global structure and fine detail
+            even on a personal image not seen in the original assignment.</li>
         </ul>
       </div>
     </section>
@@ -657,7 +624,7 @@ img_uint8, result = run_one(
       </p>
 
       <div class="figure figure-center" style="max-width: 980px;">
-        <img src="p4/part1_test_sweep_2x2.png" alt="2x2 grid of hyperparameter sweep results"/>
+        <img src="p4/2x2.png" alt="2x2 grid of hyperparameter sweep results"/>
         <figcaption class="figcap">
           2×2 hyperparameter sweep on the test image:
           top row uses width = 64, bottom row width = 256; left column uses <span class="kbd">L = 4</span>,
@@ -717,7 +684,7 @@ grid_2x2(img1.numpy(), configs, results)</code></pre>
       </p>
 
       <div class="figure figure-center" style="max-width: 640px;">
-        <img src="p4/part1_psnr_curve_test.png" alt="PSNR curve vs iteration"/>
+        <img src="p4/test_psnr.png" alt="PSNR curve vs iteration"/>
         <figcaption class="figcap">
           PSNR (dB) vs. iteration for the test image, using width = 128 and L = 10.
         </figcaption>
@@ -866,13 +833,13 @@ function sample_rays(images, c2ws, K, N, strategy="global"):
 
       <div class="gallery figure-center">
         <figure class="figure">
-          <img src="p4/part2_lego_viser_all.png" alt="Viser plot of cameras, rays, and samples"/>
+          <img src="p4/Viser-11-15-2025_02_55_PM.png" alt="Viser plot of cameras, rays, and samples"/>
           <figcaption class="figcap">
             Viser visualization on the Lego scene: camera frustums, a small batch of rays, and their sampled 3D points.
           </figcaption>
         </figure>
         <figure class="figure">
-          <img src="p4/part2_lego_viser_single_corner.png" alt="Viser plot of rays from a single corner region"/>
+          <img src="p4/Viser-11-15-2025_02_56_PM.png" alt="Viser plot of rays from a single corner region"/>
           <figcaption class="figcap">
             Debug view showing rays sampled only from the top-left region of one image, confirming UV ordering and
             intrinsics are consistent.
@@ -987,23 +954,18 @@ function nerf_forward(x_world, d_world):
         </ul>
       </div>
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p4/part2_lego_iter_01000.png" alt="Lego NeRF at iteration 1000"/>
-          <figcaption class="figcap">
-            Lego novel view around iteration 1,000 — rough geometry and colors recovered.
-          </figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p4/part2_lego_iter_05000.png" alt="Lego NeRF at iteration 5000"/>
-          <figcaption class="figcap">
-            Around iteration 5,000 — fine structures (gears, studs) and shadows sharpen.
-          </figcaption>
-        </figure>
+      <!-- Single composite image with all intermediate renders -->
+      <div class="figure figure-center" style="max-width: 980px;">
+        <img src="p4/lego_t.png" alt="Lego training progression strip"/>
+        <figcaption class="figcap">
+          Training progression on a Lego validation view. The strip shows NeRF predictions at increasing iterations
+          from left to right (e.g., early iterations on the left, later ones on the right), illustrating how geometry
+          and appearance gradually sharpen over time.
+        </figcaption>
       </div>
 
       <div class="figure figure-center" style="max-width: 640px;">
-        <img src="p4/part2_lego_psnr_val.png" alt="Lego validation PSNR curve"/>
+        <img src="p4/lego_psnr.png" alt="Lego validation PSNR curve"/>
         <figcaption class="figcap">
           PSNR on 6 validation images. I reach &gt; 23&nbsp;dB as required, with PSNR continuing to improve with more
           iterations.
@@ -1052,25 +1014,20 @@ function nerf_forward(x_world, d_world):
       </div>
 
       <div class="figure figure-center" style="max-width: 640px;">
-        <img src="p4/part2_mydata_loss.png" alt="Training loss vs iteration on my dataset"/>
+        <img src="p4/data_loss.png" alt="Training loss vs iteration on my dataset"/>
         <figcaption class="figcap">
           Training loss vs iteration on my dataset. The curve decreases smoothly and then flattens as the NeRF converges.
         </figcaption>
       </div>
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p4/part2_mydata_iter_005000.png" alt="My NeRF at 5000 iterations"/>
-          <figcaption class="figcap">
-            Intermediate render (≈ 5k iterations): coarse shape and main colors recovered.
-          </figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p4/part2_mydata_iter_015000.png" alt="My NeRF at 15000 iterations"/>
-          <figcaption class="figcap">
-            Later render (≈ 15k iterations): finer details and smoother shading around the object.
-          </figcaption>
-        </figure>
+
+      <!-- One composite image with intermediate renders -->
+      <div class="figure figure-center" style="max-width: 980px;">
+        <img src="p4/data_t.png" alt="Training progression strip on my dataset"/>
+        <figcaption class="figcap">
+          Training progression on my own dataset. The strip shows NeRF reconstructions at increasing iterations from
+          left to right, starting with blurry low-frequency estimates and ending with a sharp, high-quality rendering.
+        </figcaption>
       </div>
 
       <div class="callout">
@@ -1092,7 +1049,7 @@ for phi in linspace(360°, 0°, NUM_FRAMES):
       </div>
 
       <div class="figure figure-center" style="max-width: 720px;">
-        <img src="p4/part2_mydata_spin.gif" alt="Novel-view gif of my NeRF object"/>
+        <img src="p4/data_spin.gif" alt="Novel-view gif of my NeRF object"/>
         <figcaption class="figcap">
           Novel-view gif of my reconstructed object: the camera smoothly circles around, revealing consistent geometry
           and texture from all sides.
