@@ -3,29 +3,345 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Project 4</title>
+  <title>Project 4 — Neural Radiance Field!</title>
   <meta name="theme-color" content="#0f1226"/>
   <link rel="stylesheet" href="assets/style.css?v=2"/>
-
 </head>
 <body>
-<nav class="topbar">
-  <div class="container" style="padding:10px 24px">
-    <div class="breadcrumb">
-      <a href="index.html">← Back to Home</a>
-      <span>·</span>
-      <span>Project 4</span>
+  <!-- Top breadcrumb -->
+  <nav class="topbar">
+    <div class="container" style="padding:10px 24px">
+      <div class="breadcrumb">
+        <a href="index.html">← Back to Home</a>
+        <span>·</span>
+        <span>Project 4 — Neural Radiance Field!</span>
+      </div>
     </div>
-  </div>
-</nav>
-<main class="container">
-  <section class="section">
-    <h2>Project 4</h2>
-    <p>This page is a placeholder. Duplicate the structure from Project 0 or write your own.</p>
-  </section>
-</main>
-<footer class="container footer">
-  <div>Project 4 · CS180/280A</div>
-</footer>
+  </nav>
+
+  <main class="container">
+    <!-- Overview -->
+    <section class="section" id="overview">
+      <h1 class="proj-title">Neural Radiance Field!</h1>
+      <p>
+        In this project I implement a full Neural Radiance Field (NeRF) pipeline. I start by calibrating my own
+        camera and capturing a 3D scan of a real object, then estimate per-view camera poses with ArUco tags, and
+        finally undistort/crop the images into a NeRF-ready dataset. Later parts of the project train and evaluate
+        NeRF models on both the provided Lego scene and my custom capture.
+      </p>
+      <div class="callout">
+        <strong>High-level structure</strong>
+        <ul>
+          <li><strong>Part 0:</strong> Camera calibration, pose estimation, Viser visualization, and dataset packaging.</li>
+          <li><strong>Part 1:</strong> NeRF on the provided Lego dataset (sanity-check training and rendering).</li>
+          <li><strong>Part 2:</strong> Training and visualizing NeRF on my own captured object.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ====================== PART 0 ====================== -->
+    <section class="section" id="p0-overview">
+      <h1 class="proj-title">Part 0 — Camera Calibration, Pose Estimation &amp; Dataset Packaging</h1>
+      <p>
+        In this part I take my own photos with a phone camera, calibrate its intrinsics using ArUco tags,
+        estimate camera poses for a 3D scan of an object, visualize the camera frustums in 3D with Viser,
+        and finally undistort / crop / split the images into a NeRF-ready dataset
+        <span class="kbd">my_data.npz</span>.
+      </p>
+
+      <div class="callout">
+        <strong>Deliverables checklist</strong>
+        <ul>
+          <li><strong>0.1:</strong> Camera calibration script using ArUco tags + reported intrinsics/distortion &amp; reprojection error.</li>
+          <li><strong>0.2:</strong> 30–50 photos of my chosen object next to a printed tag (fixed zoom/exposure, varying views).</li>
+          <li><strong>0.3:</strong> Pose estimation script that exports <span class="kbd">transforms.json</span> and a Viser visualization of camera frustums (2 screenshots).</li>
+          <li><strong>0.4:</strong> Dataset script that undistorts, crops, (optionally downsamples), splits into train/val/test, and saves <span class="kbd">my_data.npz</span> containing images, c2w matrices, and intrinsics.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ====================== 0.1: Calibration ====================== -->
+    <section class="section" id="p01-calibration">
+      <h2>Part 0.1 — Calibrating My Camera with ArUco Tags</h2>
+      <p>
+        I start by calibrating my phone camera using 30–50 images of printed 4×4 ArUco tags at a fixed zoom
+        (no refocusing or digital zoom between shots). I vary the viewing angle and distance, similar to chessboard
+        calibration: some views are close, some are oblique, and I try to keep the tags well lit and in focus.
+      </p>
+
+      <div class="callout">
+        <strong>Implementation</strong>
+        <ol>
+          <li><strong>Tag model.</strong> I treat each square tag as lying on the z = 0 plane with known metric size
+            <span class="kbd">tag_size</span> (default 0.02&nbsp;m). The 3D corners are
+            <span class="kbd">[(0,0,0), (s,0,0), (s,s,0), (0,s,0)]</span>, matching OpenCV’s corner order
+            (top-left → top-right → bottom-right → bottom-left).
+          </li>
+          <li><strong>Robust marker selection.</strong> For each calibration image, I detect ArUco markers with
+            <span class="kbd">DICT_4X4_50</span> and pick the <em>largest</em> marker by contour area.
+            This stabilizes calibration when multiple tags are visible or when some tags are partially occluded.
+          </li>
+          <li><strong>Collecting correspondences.</strong> For every usable view I append a (4×3) object-point array
+            and its corresponding (4×2) image-point array. Images with no detected tags are safely skipped.</li>
+          <li><strong>Calibration model.</strong> I run <span class="kbd">cv2.calibrateCamera</span> on all collected
+            views, but strongly constrain distortion:
+            <ul>
+              <li>Only <span class="kbd">k1</span> is estimated.</li>
+              <li>Tangential distortion is forced to zero (<span class="kbd">p1 = p2 = 0</span>).</li>
+              <li>Higher-order radial terms (<span class="kbd">k2..k6</span>) are fixed to 0.</li>
+            </ul>
+            This avoids wild fisheye behaviour when fitting high-order terms from only 4 corners per view.
+          </li>
+          <li><strong>Error reporting.</strong> For each view I project the 3D tag corners back into the image,
+            compute the per-view reprojection error, and report the mean over all views alongside the RMS error
+            returned by OpenCV.
+          </li>
+          <li><strong>Saving calibration.</strong> Finally, I save both a human-readable YAML file and a quick-load NPZ:
+            <span class="kbd">camera_calibration.yaml</span> and <span class="kbd">camera_calibration.npz</span>,
+            which contain <span class="kbd">K</span>, <span class="kbd">dist</span>, image size, and error metrics.
+          </li>
+        </ol>
+      </div>
+
+      <div class="figure">
+<pre class="codeblock"><code># Part 0.1 — run calibration
+python part0.py \
+  --task calibrate \
+  --image_dir calibration \
+  --pattern "*.jpg" \
+  --tag_size 0.02 \
+  --min_views 12 \
+  --out_yaml camera_calibration.yaml \
+  --out_npz camera_calibration.npz
+
+# Core 3D tag model (world == tag coordinates)
+def make_tag_object_points(tag_size: float) -&gt; np.ndarray:
+    s = float(tag_size)
+    return np.array([
+        [0.0, 0.0, 0.0],  # top-left
+        [s,   0.0, 0.0],  # top-right
+        [s,    s,  0.0],  # bottom-right
+        [0.0,  s,  0.0],  # bottom-left
+    ], dtype=np.float32)</code></pre>
+        <figcaption class="figcap">
+          Calibration entry point and 3D tag geometry; each successful image contributes four 2D–3D correspondences.
+        </figcaption>
+      </div>
+
+      <div class="answer">
+        <div class="label">Calibration summary</div>
+        <ul>
+          <li><strong>Usable views:</strong> a subset of the 30–50 images where at least one tag was detected.</li>
+          <li><strong>Errors:</strong> RMS reprojection error is low (&lt; 1&nbsp;px), and per-view errors cluster
+            around this value, indicating a stable calibration.</li>
+          <li><strong>Model:</strong> a simple pinhole camera with only <span class="kbd">k1</span> free is sufficient
+            for my phone images; constraining higher-order terms prevents overfitting and extreme distortion.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ====================== 0.2: Capture ====================== -->
+    <section class="section" id="p02-capture">
+      <h2>Part 0.2 — Capturing a 3D Object Scan</h2>
+      <p>
+        With intrinsics fixed, I next capture a 3D scan of an object placed next to a printed ArUco tag.
+        I keep the <strong>same camera and zoom level</strong> as in calibration to ensure that the intrinsics
+        remain valid.
+      </p>
+
+      <div class="callout">
+        <strong>Capture procedure</strong>
+        <ul>
+          <li>Print a single 4×4 ArUco tag (from the assignment’s generator) and leave a white border for reliable detection.</li>
+          <li>Place the object and tag on a tabletop; treat the tag plane as the world coordinate frame (z = 0).</li>
+          <li>Use the same phone and zoom setting as in Part 0.1; lock exposure/white balance if possible.</li>
+          <li>Capture 30–50 images from varying azimuth/elevation angles, but roughly uniform distance so that
+            the object fills ~50% of the frame.</li>
+          <li>Avoid motion blur and strong lighting changes; I reshoot any obviously blurred or overexposed images.</li>
+        </ul>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p4/object_scan_01.jpg" alt="Object scan example view 1"/>
+          <figcaption class="figcap">Example object + tag view (front/side angle).</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p4/object_scan_02.jpg" alt="Object scan example view 2"/>
+          <figcaption class="figcap">Another view from a higher elevation.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ====================== 0.3: Pose Estimation ====================== -->
+    <section class="section" id="p03-pnp">
+      <h2>Part 0.3 — Estimating Camera Poses with solvePnP</h2>
+      <p>
+        Using the calibrated intrinsics, I estimate the camera pose (camera-to-world transform) for every scan image.
+        Each pose comes from a minimal PnP instance: the four ArUco corners in 3D (world) and their 2D projections
+        in the image.
+      </p>
+
+      <div class="callout">
+        <strong>Implementation</strong>
+        <ol>
+          <li><strong>Loading calibration.</strong> I load <span class="kbd">K</span>, distortion coefficients, and
+            image size from <span class="kbd">camera_calibration.yaml</span> or the NPZ file.
+          </li>
+          <li><strong>Detection &amp; filtering.</strong> For each image in <span class="kbd">data/</span> I:
+            <ul>
+              <li>Verify that the resolution matches the calibration resolution.</li>
+              <li>Detect ArUco markers and pick the largest marker in the frame.</li>
+              <li>Skip the image if no tag is found (no crash on bad frames).</li>
+            </ul>
+          </li>
+          <li><strong>PnP pose solve.</strong> With known 3D tag corners and detected 2D corners, I run
+            <span class="kbd">cv2.solvePnP</span> (ITERATIVE). If it fails, I fall back to
+            <span class="kbd">cv2.solvePnPRansac</span> for extra robustness.
+          </li>
+          <li><strong>Reprojection sanity check.</strong> For each solved pose I reproject the tag corners and compute
+            the average L2 error in pixels; this is logged per frame as a quality indicator.</li>
+          <li><strong>World frame convention.</strong> OpenCV returns <span class="kbd">X_cam = R X_world + t</span>
+            (world-&gt;camera). I convert this to camera-to-world (c2w) with
+            <span class="kbd">Rᵀ</span> and <span class="kbd">-Rᵀ t</span>, treating the tag as the world origin.
+          </li>
+          <li><strong>NeRF-style JSON.</strong> I collect all successful frames in a <span class="kbd">transforms.json</span>
+            file that follows the typical NeRF format:
+            <ul>
+              <li>Top-level intrinsics: <span class="kbd">fl_x</span>, <span class="kbd">fl_y</span>, <span class="kbd">cx</span>, <span class="kbd">cy</span>, <span class="kbd">w</span>, <span class="kbd">h</span>, and radial/tangential distortion terms.</li>
+              <li>A <span class="kbd">frames</span> list where each entry stores
+                <span class="kbd">file_path</span>, <span class="kbd">transform_matrix</span> (flattened 4×4 c2w),
+                and diagnostics like reprojection error and tag id.</li>
+            </ul>
+          </li>
+          <li><strong>Optional undistortion for visualization.</strong> If an <span class="kbd">--undistort_dir</span> is
+            given, I create undistorted/cropped debug copies using <span class="kbd">getOptimalNewCameraMatrix</span>;
+            however, <em>transforms.json always points to the original raw images</em> so that the final dataset step
+            is the only place where undistortion happens (avoids double-undistort).
+          </li>
+        </ol>
+      </div>
+
+      <div class="figure">
+<pre class="codeblock"><code># Part 0.3 — pose estimation &amp; transforms.json
+python part0.py \
+  --task pose \
+  --data_dir data \
+  --data_pattern "*.jpg" \
+  --calib_yaml camera_calibration.yaml \
+  --calib_npz camera_calibration.npz \
+  --tag_size 0.02 \
+  --out_json transforms.json \
+  --undistort_dir undistort_debug \
+  --debug_draw \
+  --viser</code></pre>
+        <figcaption class="figcap">
+          Command used to estimate per-image poses and launch a Viser server for 3D visualization.
+        </figcaption>
+      </div>
+
+      <div class="gallery figure-center">
+        <figure class="figure">
+          <img src="p4/viser_cameras_view1.png" alt="Viser camera cloud view 1"/>
+          <figcaption class="figcap">
+            Camera frustums orbiting the object (view 1); each frustum is textured with its corresponding image.
+          </figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p4/viser_cameras_view2.png" alt="Viser camera cloud view 2"/>
+          <figcaption class="figcap">
+            Same camera cloud from a different viewpoint, illustrating the coverage in elevation.
+          </figcaption>
+        </figure>
+      </div>
+
+      <div class="answer">
+        <div class="label">Pose estimation notes</div>
+        <ul>
+          <li>Frames where the tag is too small, occluded, or blurred are automatically skipped rather than breaking the pipeline.</li>
+          <li>The resulting camera cloud roughly traces a ring around the object with modest vertical variation, a good configuration for NeRF training.</li>
+          <li>By consistently treating the tag plane as world space and inverting OpenCV’s world-&gt;camera transform, the c2w matrices are directly usable in later parts.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ====================== 0.4: Dataset Packaging ====================== -->
+    <section class="section" id="p04-dataset">
+      <h2>Part 0.4 — Undistorting Images &amp; Creating a NeRF Dataset</h2>
+      <p>
+        The final step is to undistort/crop the images, optionally downsample them, and package everything into a single
+        <span class="kbd">.npz</span> file with intrinsics and camera poses. This NPZ matches the format expected by
+        the NeRF training code used later in the project.
+      </p>
+
+      <div class="callout">
+        <strong>Dataset pipeline</strong>
+        <ol>
+          <li><strong>Load calibration &amp; transforms.</strong> I load <span class="kbd">K</span>,
+            <span class="kbd">dist</span>, and the original image size from Part 0.1, then read all frames from
+            <span class="kbd">transforms.json</span>. Each frame provides a file path and a 4×4 c2w matrix.
+          </li>
+          <li><strong>Optimal undistortion &amp; cropping.</strong> To remove distortion and avoid black borders, I:
+            <ul>
+              <li>Call <span class="kbd">cv2.getOptimalNewCameraMatrix(K, dist, ... , alpha=0)</span> to obtain a new camera matrix
+                and a rectangular ROI of valid pixels.</li>
+              <li>Undistort each image with <span class="kbd">cv2.undistort</span> using <span class="kbd">newK</span>, then crop to the ROI.</li>
+              <li>Update the principal point by subtracting the crop offset: <span class="kbd">cx -= x_roi</span>,
+                <span class="kbd">cy -= y_roi</span>.</li>
+            </ul>
+          </li>
+          <li><strong>Optional resizing.</strong> If <span class="kbd">resize_scale ≠ 1.0</span>, I downsample the
+            cropped images using <span class="kbd">cv2.INTER_AREA</span> and scale the intrinsics
+            (<span class="kbd">fx, fy, cx, cy</span>) by the same factor.</li>
+          <li><strong>RGB conversion &amp; dumping.</strong> The final training images are stored as uint8 RGB arrays
+            in [0, 255]. Optionally, I also dump these processed images to a folder for sanity-check visualization.</li>
+          <li><strong>Train/val/test split.</strong> I shuffle the frames with a fixed random seed and partition them
+            into train/val/test according to user-specified ratios (default 80/10/10), ensuring non-empty splits when possible.</li>
+          <li><strong>Saving NPZ.</strong> Finally, I save:
+            <ul>
+              <li><span class="kbd">images_train</span>, <span class="kbd">c2ws_train</span></li>
+              <li><span class="kbd">images_val</span>, <span class="kbd">c2ws_val</span></li>
+              <li><span class="kbd">c2ws_test</span> (test images use the same underlying image tensor as train/val)</li>
+              <li>Intrinsics for the final resolution: <span class="kbd">focal</span> (alias for <span class="kbd">fx</span>),
+                plus <span class="kbd">fx, fy, cx, cy</span>.</li>
+            </ul>
+          </li>
+        </ol>
+      </div>
+
+      <div class="figure">
+<pre class="codeblock"><code># Part 0.4 — build my_data.npz from transforms.json
+python part0.py \
+  --task dataset \
+  --transforms transforms.json \
+  --calib_yaml camera_calibration.yaml \
+  --calib_npz camera_calibration.npz \
+  --dataset_npz my_data.npz \
+  --train_ratio 0.8 \
+  --val_ratio 0.1 \
+  --test_ratio 0.1 \
+  --resize_scale 1.0 \
+  --dataset_undistort_dir dataset_images</code></pre>
+        <figcaption class="figcap">
+          Single command that undistorts/crops all views, splits them into train/val/test, and writes
+          <span class="kbd">my_data.npz</span>.
+        </figcaption>
+      </div>
+
+      <div class="answer">
+        <div class="label">Final dataset properties</div>
+        <ul>
+          <li><strong>Resolution:</strong> after cropping (and any downsampling), all images share the same <span class="kbd">H×W</span> shape and intrinsics.</li>
+          <li><strong>Consistency:</strong> c2w matrices are exactly those exported in <span class="kbd">transforms.json</span>, so the NeRF sees a coherent camera rig.</li>
+          <li><strong>Compatibility:</strong> the resulting NPZ mirrors the structure of the provided Lego dataset, allowing me to plug
+            <span class="kbd">my_data.npz</span> directly into the NeRF training/validation code in Parts 1 and 2.</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer class="container footer">
+    <div>Project 4 · CS180/280A</div>
+  </footer>
 </body>
 </html>
