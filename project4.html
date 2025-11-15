@@ -733,6 +733,384 @@ grid_2x2(img1.numpy(), configs, results)</code></pre>
       </div>
     </section>
 
+
+        <!-- ===================================================== -->
+    <!-- ====================== PART 2 ====================== -->
+    <!-- ===================================================== -->
+
+    <section class="section" id="p2-overview">
+      <h1 class="proj-title">Part 2 — NeRF from Multi-view Images</h1>
+      <p>
+        In this part I turn the 2D neural field from Part&nbsp;1 into a full Neural Radiance Field (NeRF) that represents
+        a 3D scene from multi-view, calibrated images. I first train on the Lego dataset and then reuse the same pipeline
+        on my own captured object from Part&nbsp;0.
+      </p>
+      <div class="callout">
+        <strong>What I implement</strong>
+        <ul>
+          <li><strong>2.1:</strong> Geometry utilities to go from pixels to world-space rays.</li>
+          <li><strong>2.2–2.3:</strong> Sampling rays and 3D points, and a multi-view <span class="kbd">RaysData</span> dataloader.</li>
+          <li><strong>2.4–2.5:</strong> A NeRF MLP (position + view direction) and differentiable volume rendering.</li>
+          <li><strong>2.6:</strong> Training and visualizing NeRF on Lego and on my own data (novel-view videos).</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ====================== 2.1 — Rays from Cameras ====================== -->
+    <section class="section" id="p21-geometry">
+      <h2>Part 2.1 — Camera &amp; Pixel Geometry → Rays</h2>
+      <p>
+        The goal is to convert pixel coordinates into world-space rays using the known intrinsics and extrinsics for each
+        view. I implement three small geometry helpers:
+      </p>
+      <ul>
+        <li><strong>Camera → world transform:</strong> given homogeneous <span class="kbd">c2w</span>, map a 3D camera-space
+          point <span class="kbd">x_c</span> to world space <span class="kbd">x_w</span>.</li>
+        <li><strong>Pixel → camera inverse projection:</strong> invert the pinhole camera to recover a camera-space point
+          from <span class="kbd">(u, v, depth)</span> using the intrinsics matrix <span class="kbd">K</span>.</li>
+        <li><strong>Pixel → ray:</strong> use the camera origin and a point at depth 1 along the back-projected pixel to define
+          a ray origin <span class="kbd">o</span> and direction <span class="kbd">d</span>.</li>
+      </ul>
+
+      <div class="figure">
+<pre class="codeblock"><code># Pseudocode for pixel → ray
+function pixel_to_ray(K, c2w, uv):
+    # 1) Camera origin in world space
+    cam_o = c2w.translation  # (3,)
+
+    # 2) Back-project pixel to camera coords at depth = 1
+    #    x_c = ( (u-cx)/fx, (v-cy)/fy, 1 ) * depth
+    x_c = pixel_to_camera(K, uv, depth=1.0)
+
+    # 3) Transform to world and normalize direction
+    x_w = transform(c2w, x_c)
+    d   = normalize(x_w - cam_o)
+
+    return cam_o, d</code></pre>
+        <figcaption class="figcap">
+          Pixel&nbsp;→ ray pseudocode. I implement all three helpers in PyTorch with support for batched rays.
+        </figcaption>
+      </div>
+
+      <div class="answer">
+        <div class="label">Sanity checks</div>
+        <ul>
+          <li>I verify that <span class="kbd">x_c ≈ inv(c2w)( transform(c2w, x_c) )</span> for random 3D points.</li>
+          <li>I check that all ray directions are unit-length and that the center pixel’s ray roughly aligns with the
+            camera’s viewing direction.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ====================== 2.2–2.3 — Sampling & RaysData ====================== -->
+    <section class="section" id="p22-sampling">
+      <h2>Part 2.2–2.3 — Sampling Rays &amp; 3D Points (RaysData)</h2>
+      <p>
+        Next, I build the multiview dataloader. It randomly samples pixels across all images, converts them into rays,
+        and then samples 3D points along each ray for NeRF.
+      </p>
+
+      <div class="callout">
+        <strong>Ray sampling strategies</strong>
+        <ol>
+          <li><strong>Global sampling:</strong> flatten all <span class="kbd">N_img × H × W</span> pixels and randomly pick
+            indices; each index is mapped back to <span class="kbd">(image_idx, u, v)</span>.</li>
+          <li><strong>Per-image sampling:</strong> choose <span class="kbd">M</span> images at random and sample
+            <span class="kbd">N/M</span> rays per image (useful for debugging single-camera frustums).</li>
+          <li><strong>Ground-truth colors:</strong> at each sampled integer pixel I store the RGB value
+            <span class="kbd">images[img_idx, v, u]</span> as the supervision target.</li>
+        </ol>
+      </div>
+
+      <div class="figure">
+<pre class="codeblock"><code># Pseudocode: sample N rays from a multiview dataset
+function sample_rays(images, c2ws, K, N, strategy="global"):
+    if strategy == "global":
+        # choose N random pixels over all images
+        choose random (img_idx, u, v) triplets
+    else:
+        # choose M images, then N//M pixels per chosen image
+        ...
+
+    # Convert to float pixel centers
+    uv = (u + 0.5, v + 0.5)
+
+    # Per-sample camera pose
+    c2w_samples = c2ws[img_idx]
+
+    # Pixel → ray and colors
+    ray_o, ray_d = pixel_to_ray(K, c2w_samples, uv)
+    rgb          = images[img_idx, v, u]
+
+    return ray_o, ray_d, rgb</code></pre>
+        <figcaption class="figcap">
+          High-level ray sampling logic used inside my <span class="kbd">RaysData.sample_rays</span> method.
+        </figcaption>
+      </div>
+
+      <div class="callout">
+        <strong>Sampling 3D points along rays</strong>
+        <p>
+          For each ray I create <span class="kbd">n_samples</span> points between <span class="kbd">near</span> and
+          <span class="kbd">far</span> using stratified sampling:
+        </p>
+        <ol>
+          <li>Create bin edges with <span class="kbd">linspace(near, far, n_samples+1)</span>.</li>
+          <li>For training: jitter each interval (random offset within each bin) so every ray covers slightly different
+            depths across iterations.</li>
+          <li>For evaluation: use midpoints of each bin (no randomness).</li>
+          <li>Convert <span class="kbd">t</span> values into 3D points with
+            <span class="kbd">x = o + t·d</span> for each ray.</li>
+        </ol>
+      </div>
+
+      <div class="gallery figure-center">
+        <figure class="figure">
+          <img src="p4/part2_lego_viser_all.png" alt="Viser plot of cameras, rays, and samples"/>
+          <figcaption class="figcap">
+            Viser visualization on the Lego scene: camera frustums, a small batch of rays, and their sampled 3D points.
+          </figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p4/part2_lego_viser_single_corner.png" alt="Viser plot of rays from a single corner region"/>
+          <figcaption class="figcap">
+            Debug view showing rays sampled only from the top-left region of one image, confirming UV ordering and
+            intrinsics are consistent.
+          </figcaption>
+        </figure>
+      </div>
+
+      <div class="answer">
+        <div class="label">Checks for correctness</div>
+        <ul>
+          <li>I verify that integer UV indices match image pixels:
+            <span class="kbd">images[0, uvs[:,1], uvs[:,0]] == dataset.pixels</span> for a slice of the first image.</li>
+          <li>Viser visualizations confirm that rays from a single view lie inside its frustum and point towards the Lego.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ====================== 2.4 — NeRF Network ====================== -->
+    <section class="section" id="p24-nerf">
+      <h2>Part 2.4 — NeRF Network: Position &amp; View Direction</h2>
+      <p>
+        I extend the Part&nbsp;1 MLP to a full NeRF. The input is 3D world position and a 3D view direction; the output is
+        volume density <span class="kbd">σ</span> and RGB color <span class="kbd">c</span>.
+      </p>
+
+      <div class="callout">
+        <strong>NeRF MLP architecture</strong>
+        <ul>
+          <li><strong>Inputs:</strong>
+            <ul>
+              <li>3D position <span class="kbd">x_w</span>, encoded with sinusoidal PE (L=10).</li>
+              <li>3D view direction <span class="kbd">d_w</span>, normalized and encoded with PE (L=4).</li>
+            </ul>
+          </li>
+          <li><strong>Trunk:</strong> deep MLP over encoded positions (depth = 8, width = 256) with a skip connection
+            that concatenates the original position encoding back into the mid-layer.</li>
+          <li><strong>Heads:</strong>
+            <ul>
+              <li><strong>Density head:</strong> predicts <span class="kbd">σ</span> and passes it through a softplus
+                (non-negative) with small noise during training (NeRF trick).</li>
+              <li><strong>Color head:</strong> combines a learned feature vector with the encoded view direction to
+                predict RGB, then applies a Sigmoid to constrain colors to [0, 1].</li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+
+      <div class="figure">
+<pre class="codeblock"><code># Pseudocode: forward pass through NeRF MLP
+function nerf_forward(x_world, d_world):
+    x_enc = PE_xyz(x_world)       # high-frequency encoding of position
+    d_enc = PE_dir(normalize(d_world))
+
+    # Trunk over position
+    h = x_enc
+    for layer in trunk_layers:
+        h = ReLU(layer(h))
+        if layer_index in skip_layers:
+            h = concat(h, x_enc)
+
+    # Density and intermediate features
+    sigma_raw = sigma_head(h)     # add small noise during training
+    sigma = softplus(sigma_raw)   # σ ≥ 0
+    feat  = ReLU(feature_head(h))
+
+    # View-dependent color
+    col_input = concat(feat, d_enc)
+    h_col = ReLU(rgb_fc1(col_input))
+    rgb   = Sigmoid(rgb_fc2(h_col))
+
+    return sigma, rgb</code></pre>
+        <figcaption class="figcap">
+          NeRF MLP pseudocode: deeper trunk, skip connection, density and view-conditioned color heads.
+        </figcaption>
+      </div>
+    </section>
+
+    <!-- ====================== 2.5 — Volume Rendering & Lego Training ====================== -->
+    <section class="section" id="p25-volrend">
+      <h2>Part 2.5 — Volume Rendering &amp; NeRF Training on Lego</h2>
+      <p>
+        With the NeRF MLP and sampled points along each ray, I implement volume rendering and train a NeRF on the Lego
+        scene. The rendered ray colors are directly compared to the ground-truth pixel colors.
+      </p>
+
+      <div class="callout">
+        <strong>Volume rendering</strong>
+        <ol>
+          <li>Given <span class="kbd">σ_i</span> and <span class="kbd">c_i</span> along a ray and depths
+            <span class="kbd">t_i</span>, I compute per-interval distances
+            <span class="kbd">Δ_i = t_{i+1} - t_i</span>.</li>
+          <li>Opacity for each sample:
+            <span class="kbd">α_i = 1 − exp(−σ_i · Δ_i)</span>.</li>
+          <li>Transmittance up to sample <span class="kbd">i</span>:
+            <span class="kbd">T_i = ∏_{j&lt;i}(1 − α_j)</span> (computed with <span class="kbd">cumprod</span>).</li>
+          <li>Weights: <span class="kbd">w_i = α_i · T_i</span>.</li>
+          <li>Final color: <span class="kbd">C = Σ_i w_i c_i</span>, optional white-background compensation using
+            <span class="kbd">1 − Σ_i w_i</span>.</li>
+        </ol>
+      </div>
+
+      <div class="callout">
+        <strong>Lego training setup</strong>
+        <ul>
+          <li><strong>Data:</strong> <span class="kbd">lego_200x200.npz</span> (100 train, 10 val, 60 test cameras).</li>
+          <li><strong>Near/far:</strong> <span class="kbd">near = 2.0</span>, <span class="kbd">far = 6.0</span>.</li>
+          <li><strong>Sampling:</strong> 64 coarse samples + 128 fine samples per ray (hierarchical sampling).</li>
+          <li><strong>Batch size:</strong> 8,192 rays per gradient step.</li>
+          <li><strong>Optimizer:</strong> Adam, learning rate 5×10⁻⁴ with warmup and cosine decay.</li>
+          <li><strong>Loss:</strong> MSE on fine render plus 0.1× MSE on coarse render; white background.</li>
+          <li><strong>Metric:</strong> PSNR on 6 validation views.</li>
+        </ul>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p4/part2_lego_iter_01000.png" alt="Lego NeRF at iteration 1000"/>
+          <figcaption class="figcap">
+            Lego novel view around iteration 1,000 — rough geometry and colors recovered.
+          </figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p4/part2_lego_iter_05000.png" alt="Lego NeRF at iteration 5000"/>
+          <figcaption class="figcap">
+            Around iteration 5,000 — fine structures (gears, studs) and shadows sharpen.
+          </figcaption>
+        </figure>
+      </div>
+
+      <div class="figure figure-center" style="max-width: 640px;">
+        <img src="p4/part2_lego_psnr_val.png" alt="Lego validation PSNR curve"/>
+        <figcaption class="figcap">
+          PSNR on 6 validation images. I reach &gt; 23&nbsp;dB as required, with PSNR continuing to improve with more
+          iterations.
+        </figcaption>
+      </div>
+
+      <div class="figure figure-center" style="max-width: 720px;">
+        <video controls loop muted style="width:100%;border-radius:12px;">
+          <source src="p4/lego_spherical.mp4" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+        <figcaption class="figcap">
+          Spherical rendering of Lego using the provided <span class="kbd">c2ws_test</span> camera path (novel views).
+        </figcaption>
+      </div>
+
+      <div class="answer">
+        <div class="label">Lego NeRF observations</div>
+        <ul>
+          <li>The network first captures coarse shapes and background, then refines sharp edges and thin structures.</li>
+          <li>View-dependent effects (e.g., specular highlights) become more accurate after the geometry warmup stage.</li>
+          <li>The final spherical video shows consistent geometry and appearance across unseen viewpoints.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ====================== 2.6 — NeRF on My Own Data ====================== -->
+    <section class="section" id="p26-mydata">
+      <h2>Part 2.6 — NeRF on My Own Captured Dataset</h2>
+      <p>
+        Finally, I apply the same NeRF pipeline to the dataset I built in Part&nbsp;0. The images are undistorted and
+        split into train / val / test with calibrated camera poses and intrinsics.
+      </p>
+
+      <div class="callout">
+        <strong>Setup for my data</strong>
+        <ul>
+          <li><strong>Dataset:</strong> <span class="kbd">my_data_down.npz</span> (downsampled resolution for faster training).</li>
+          <li><strong>Intrinsics:</strong> use stored <span class="kbd">fx, fy, cx, cy</span> to build the camera matrix
+            <span class="kbd">K</span>.</li>
+          <li><strong>Near/far:</strong> the object is much closer, so I use <span class="kbd">near ≈ 0.02</span>,
+            <span class="kbd">far ≈ 0.5</span> (tuned empirically).</li>
+          <li><strong>Samples per ray:</strong> start with 32 for debugging, then 64–128 for final training.</li>
+          <li><strong>Training:</strong> same NeRF architecture and loss; I log both training loss and validation PSNR.</li>
+        </ul>
+      </div>
+
+      <div class="figure figure-center" style="max-width: 640px;">
+        <img src="p4/part2_mydata_loss.png" alt="Training loss vs iteration on my dataset"/>
+        <figcaption class="figcap">
+          Training loss vs iteration on my dataset. The curve decreases smoothly and then flattens as the NeRF converges.
+        </figcaption>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p4/part2_mydata_iter_005000.png" alt="My NeRF at 5000 iterations"/>
+          <figcaption class="figcap">
+            Intermediate render (≈ 5k iterations): coarse shape and main colors recovered.
+          </figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p4/part2_mydata_iter_015000.png" alt="My NeRF at 15000 iterations"/>
+          <figcaption class="figcap">
+            Later render (≈ 15k iterations): finer details and smoother shading around the object.
+          </figcaption>
+        </figure>
+      </div>
+
+      <div class="callout">
+        <strong>Novel-view camera path</strong>
+        <p>
+          I generate a smooth camera path that circles the object while always looking at the origin. At each position
+          I render an image with my trained NeRF and stitch them into a gif.
+        </p>
+        <p>
+          Pseudocode:
+        </p>
+<pre class="codeblock"><code># Pseudocode: 360° spin around the object
+start_pos = c2ws_train[0][:3, 3]       # reuse one training camera position
+for phi in linspace(360°, 0°, NUM_FRAMES):
+    base_c2w  = look_at_origin(start_pos)
+    spin_c2w  = rot_x(phi) @ base_c2w  # rotate camera around object
+    frame_img = render_image(nerf, spin_c2w, near, far)
+    append frame_img to gif_frames</code></pre>
+      </div>
+
+      <div class="figure figure-center" style="max-width: 720px;">
+        <img src="p4/part2_mydata_spin.gif" alt="Novel-view gif of my NeRF object"/>
+        <figcaption class="figcap">
+          Novel-view gif of my reconstructed object: the camera smoothly circles around, revealing consistent geometry
+          and texture from all sides.
+        </figcaption>
+      </div>
+
+      <div class="answer">
+        <div class="label">Notes &amp; adjustments for my data</div>
+        <ul>
+          <li>Choosing correct <span class="kbd">near</span>/<span class="kbd">far</span> bounds was crucial; using Lego’s
+            [2, 6] range produced almost no density and stalled training.</li>
+          <li>Increasing the number of samples per ray helped capture fine details, at the cost of longer training time.</li>
+          <li>Downsampling images before NeRF training made the experiment practical while still producing a visually
+            convincing 3D reconstruction.</li>
+        </ul>
+      </div>
+    </section>
+
   </main>
 
   <footer class="container footer">
