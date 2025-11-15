@@ -555,17 +555,19 @@ img_uint8, result = run_one(
         reconstructions at increasing iterations from left to right (e.g., 0 → 50 → 100 → 300 → 600 → 1000 → 1500).
       </p>
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p4/wolf.jpg" alt="Test image ground truth"/>
-          <figcaption class="figcap">Ground-truth test image.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p4/1_iter.png" alt="Test image training progression strip"/>
-          <figcaption class="figcap">
-            Training progression: each tile in the strip is the neural field’s reconstruction at a later iteration.
-          </figcaption>
-        </figure>
+      <!-- Ground truth, centered and reasonably sized -->
+      <div class="figure figure-center" style="max-width: 520px;">
+        <img src="p4/wolf.jpg" alt="Test image ground truth"/>
+        <figcaption class="figcap">Ground-truth test image.</figcaption>
+      </div>
+
+      <!-- Progress strip below, larger width -->
+      <div class="figure figure-center" style="max-width: 980px; margin-top: 16px;">
+        <img src="p4/1_iter.png" alt="Test image training progression strip"/>
+        <figcaption class="figcap">
+          Training progression: each tile in the strip is the neural field’s reconstruction at a later iteration,
+          from left (early, blurry) to right (late, sharp).
+        </figcaption>
       </div>
 
       <div class="answer">
@@ -584,18 +586,19 @@ img_uint8, result = run_one(
         training iterations.
       </p>
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p4/linkedin.png" alt="Own image ground truth"/>
-          <figcaption class="figcap">Ground-truth personal image.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p4/2_iter.png" alt="Own image training progression strip"/>
-          <figcaption class="figcap">
-            Training progression on my own image: the network first captures global layout and then refines facial
-            features and small textures.
-          </figcaption>
-        </figure>
+      <!-- Ground truth, centered -->
+      <div class="figure figure-center" style="max-width: 520px;">
+        <img src="p4/linkedin.png" alt="Own image ground truth"/>
+        <figcaption class="figcap">Ground-truth personal image.</figcaption>
+      </div>
+
+      <!-- Progress strip below, larger -->
+      <div class="figure figure-center" style="max-width: 980px; margin-top: 16px;">
+        <img src="p4/2_iter.png" alt="Own image training progression strip"/>
+        <figcaption class="figcap">
+          Training progression on my own image: the network first fits global layout and colors, then sharpens facial
+          features and small textures towards the right end of the strip.
+        </figcaption>
       </div>
 
       <div class="answer">
