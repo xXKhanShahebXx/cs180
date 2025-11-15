@@ -33,8 +33,8 @@
         <strong>High-level structure</strong>
         <ul>
           <li><strong>Part 0:</strong> Camera calibration, pose estimation, Viser visualization, and dataset packaging.</li>
-          <li><strong>Part 1:</strong> NeRF on the provided Lego dataset (sanity-check training and rendering).</li>
-          <li><strong>Part 2:</strong> Training and visualizing NeRF on my own captured object.</li>
+          <li><strong>Part 1:</strong> Neural field fitting on 2D images (coordinate-based MLP + positional encoding).</li>
+          <li><strong>Part 2:</strong> Training and visualizing NeRF on both the Lego dataset and my own object scan.</li>
         </ul>
       </div>
     </section>
@@ -338,6 +338,401 @@ python part0.py \
         </ul>
       </div>
     </section>
+
+    <!-- ===================================================== -->
+    <!-- ====================== PART 1 ====================== -->
+    <!-- ===================================================== -->
+
+    <section class="section" id="p1-overview">
+      <h1 class="proj-title">Part 1 — Neural Field for a 2D Image</h1>
+      <p>
+        Before jumping into full 3D NeRFs, I first implement a 2D <em>neural field</em> that fits a single RGB image.
+        Instead of mapping 3D position + viewing direction to color and density, this network maps
+        normalized 2D pixel coordinates <span class="kbd">(x, y)</span> to RGB values <span class="kbd">(r, g, b)</span>.
+        The model is a coordinate-based MLP with sinusoidal positional encoding, trained with random-pixel minibatches.
+      </p>
+
+      <div class="callout">
+        <strong>Deliverables checklist</strong>
+        <ul>
+          <li>Report model architecture (layers, width, positional encoding frequencies, learning rate).</li>
+          <li>Show training progression on the provided test image and on one of my own images.</li>
+          <li>Show a 2×2 grid of final reconstructions for 2 choices of width and 2 choices of max frequency <span class="kbd">L</span>.</li>
+          <li>Plot the PSNR curve over training for one image.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ====================== 1.1 — Architecture & PE ====================== -->
+    <section class="section" id="p11-arch">
+      <h2>Part 1.1 — MLP Architecture &amp; Sinusoidal Positional Encoding</h2>
+      <p>
+        The neural field takes a normalized 2D coordinate <span class="kbd">p = (x, y) ∈ [0,1]²</span> and first applies
+        NeRF-style sinusoidal positional encoding, then feeds the result into a fully-connected MLP that predicts an RGB
+        color in <span class="kbd">[0,1]</span>.
+      </p>
+
+      <div class="callout">
+        <strong>Model design</strong>
+        <ul>
+          <li><strong>Positional Encoding (PE).</strong> For each coordinate <span class="kbd">p</span>, I use
+            <span class="kbd">L</span> frequency bands and implement:
+            <div class="figure">
+<pre class="codeblock"><code># gamma(p) = [p, sin(2^k pi p), cos(2^k pi p)] for k = 0..L-1
+class PositionalEncoding(nn.Module):
+    def __init__(self, in_dims=2, num_freqs=10, include_input=True):
+        super().__init__()
+        self.in_dims = in_dims
+        self.num_freqs = num_freqs
+        self.include_input = include_input
+        self.register_buffer(
+            "freq_bands",
+            (2.0 ** torch.arange(num_freqs)).float() * math.pi
+        )
+        out_dim = (in_dims if include_input else 0) + 2 * in_dims * num_freqs
+        self.out_dim = out_dim
+
+    def forward(self, x):  # x: (N, 2) in [0,1]
+        outs = []
+        if self.include_input:
+            outs.append(x)
+        xb = x.unsqueeze(-1) * self.freq_bands  # (N, 2, L)
+        outs.append(torch.sin(xb).reshape(x.shape[0], -1))
+        outs.append(torch.cos(xb).reshape(x.shape[0], -1))
+        return torch.cat(outs, dim=-1)</code></pre>
+              <figcaption class="figcap">
+                Sinusoidal positional encoding: for <span class="kbd">L=10</span>, the 2D coordinate is mapped to a
+                42-D feature vector.
+              </figcaption>
+            </div>
+          </li>
+          <li><strong>Neural Field MLP.</strong> The neural field itself is a ReLU MLP:
+            <span class="kbd">[Linear(width) + ReLU] × depth → Linear(3) → Sigmoid</span>.
+            The final Sigmoid ensures outputs lie in <span class="kbd">[0,1]</span>.
+            <div class="figure">
+<pre class="codeblock"><code>class NeuralField2D(nn.Module):
+    def __init__(self, in_dim, width=128, depth=4, out_dim=3):
+        super().__init__()
+        layers = []
+        last = in_dim
+        for _ in range(depth):
+            layers += [nn.Linear(last, width), nn.ReLU(inplace=True)]
+            last = width
+        layers += [nn.Linear(last, out_dim), nn.Sigmoid()]
+        self.net = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.net(x)</code></pre>
+              <figcaption class="figcap">
+                Base architecture used in Part 1: depth = 4, width in {64, 128, 256}, and
+                <span class="kbd">L ∈ {4, 10}</span> for the PE sweep.
+              </figcaption>
+            </div>
+          </li>
+          <li><strong>Coordinate parameterization.</strong> I index each pixel by normalized coordinates:
+            <span class="kbd">x = col / (W-1)</span>, <span class="kbd">y = row / (H-1)</span>, so the domain is
+            always <span class="kbd">[0,1]²</span> regardless of resolution.
+          </li>
+        </ul>
+      </div>
+
+      <div class="answer">
+        <div class="label">Reported base architecture</div>
+        <ul>
+          <li><strong>Depth:</strong> 4 hidden layers.</li>
+          <li><strong>Width:</strong> 128 channels (sweep also uses 64 and 256).</li>
+          <li><strong>PE frequencies:</strong> default <span class="kbd">L = 10</span> (sweep also at <span class="kbd">L = 4</span>).</li>
+          <li><strong>Activation:</strong> ReLU, with a final Sigmoid on RGB.</li>
+          <li><strong>Optimizer:</strong> Adam with learning rate <span class="kbd">1e-2</span>.</li>
+          <li><strong>Batch size:</strong> 10,000 pixels per iteration.</li>
+          <li><strong>Iterations:</strong> 1,200–1,500 depending on the experiment.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ====================== 1.2 — Dataloader & Training Loop ====================== -->
+    <section class="section" id="p12-training">
+      <h2>Part 1.2 — Random-Pixel Dataloader, Loss, and Training Loop</h2>
+      <p>
+        Training the neural field on every pixel at every step is wasteful and can exceed GPU memory for large images.
+        Instead, I treat each pixel as a training sample and randomly subsample a large mini-batch of pixels each
+        iteration.
+      </p>
+
+      <div class="callout">
+        <strong>Dataloader + training setup</strong>
+        <ol>
+          <li><strong>Image preprocessing.</strong> I load the RGB image as a <span class="kbd">(H, W, 3)</span> uint8
+            tensor, then normalize to <span class="kbd">[0,1]</span> and flatten to <span class="kbd">(H·W, 3)</span>
+            for supervision:
+            <span class="kbd">gt = img.float() / 255.0</span>.
+          </li>
+          <li><strong>Coordinate grid.</strong> I precompute all coordinates once:
+            <div class="figure">
+<pre class="codeblock"><code>def make_coords(H, W, device):
+    ys = torch.linspace(0.0, 1.0, H, device=device)
+    xs = torch.linspace(0.0, 1.0, W, device=device)
+    ys, xs = torch.meshgrid(ys, xs, indexing="ij")
+    return torch.stack([xs, ys], dim=-1).view(-1, 2)</code></pre>
+              <figcaption class="figcap">
+                Normalized coordinate grid used as input to the positional encoding.
+              </figcaption>
+            </div>
+          </li>
+          <li><strong>Random pixel batches.</strong> Each iteration samples
+            <span class="kbd">batch_size = 10,000</span> random indices into the flattened coordinate/color arrays:
+            <div class="figure">
+<pre class="codeblock"><code>idx = torch.randint(0, H*W, (batch_size,), device=device)
+coords = coords_all[idx]          # (B, 2)
+target = gt[idx]                  # (B, 3)
+pred = model(pe(coords))          # (B, 3)</code></pre>
+              <figcaption class="figcap">
+                Stochastic training over random pixels, equivalent to using a batch size of 10k.
+              </figcaption>
+            </div>
+          </li>
+          <li><strong>Loss &amp; optimizer.</strong> I use MSE loss between predicted and ground-truth colors, with Adam:
+            <div class="figure">
+<pre class="codeblock"><code>loss = F.mse_loss(pred, target)
+optim = torch.optim.Adam(model.parameters(), lr=1e-2)
+optim.zero_grad(set_to_none=True)
+loss.backward()
+optim.step()</code></pre>
+              <figcaption class="figcap">
+                Basic training step for the neural field.
+              </figcaption>
+            </div>
+          </li>
+          <li><strong>PSNR metric.</strong> Every <span class="kbd">eval_every</span> iterations, I render the full
+            image and compute MSE and PSNR:
+            <div class="figure">
+<pre class="codeblock"><code>def psnr_from_mse(mse):
+    return -10.0 * torch.log10(mse.clamp(min=1e-12))
+
+with torch.no_grad():
+    full_pred = render_full_image(model, pe, H, W, device)
+    mse = F.mse_loss(full_pred.view(-1,3), gt)
+    psnr = psnr_from_mse(mse).item()</code></pre>
+              <figcaption class="figcap">
+                PSNR (in dB) is used to track reconstruction quality during training.
+              </figcaption>
+            </div>
+          </li>
+        </ol>
+      </div>
+
+      <div class="figure">
+<pre class="codeblock"><code># High-level training driver
+img_uint8, result = run_one(
+    image_path="wolf.jpg",   # test image
+    max_side=256,
+    L=10, width=128, depth=4,
+    iters=1500,
+    batch_size=10_000,
+    lr=1e-2,
+    eval_every=100,
+    progress_snaps=[0, 50, 100, 300, 600, 1000, 1500],
+    device=device,
+)</code></pre>
+        <figcaption class="figcap">
+          Configuration used for the main experiment on the provided test image.
+        </figcaption>
+      </div>
+    </section>
+
+    <!-- ====================== 1.3 — Training Progression ====================== -->
+    <section class="section" id="p13-progress">
+      <h2>Part 1.3 — Training Progression on Two Images</h2>
+      <p>
+        I visualize how the neural field gradually fits the image by snapshotting the full reconstruction at
+        different iterations. Below I show the evolution for both the provided test image and one of my own images.
+      </p>
+
+      <h3>Test image (provided)</h3>
+      <p>
+        The test image is a natural image (e.g., <span class="kbd">wolf.jpg</span>). I train with
+        <span class="kbd">width = 128</span>, <span class="kbd">depth = 4</span>, and <span class="kbd">L = 10</span>.
+      </p>
+
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p4/part1_test_gt.png" alt="Test image ground truth"/>
+          <figcaption class="figcap">Ground-truth test image.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p4/part1_test_iter_000.png" alt="Test image reconstruction iter 0"/>
+          <figcaption class="figcap">Iteration 0 — random initialization; blurry low-frequency guess.</figcaption>
+        </figure>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p4/part1_test_iter_100.png" alt="Test image reconstruction iter 100"/>
+          <figcaption class="figcap">Iteration 100 — coarse colors and large structures emerge.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p4/part1_test_iter_300.png" alt="Test image reconstruction iter 300"/>
+          <figcaption class="figcap">Iteration 300 — edges and mid-frequency details start appearing.</figcaption>
+        </figure>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p4/part1_test_iter_600.png" alt="Test image reconstruction iter 600"/>
+          <figcaption class="figcap">Iteration 600 — textures sharpen; background becomes more consistent.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p4/part1_test_iter_1500.png" alt="Test image reconstruction iter 1500"/>
+          <figcaption class="figcap">Iteration 1500 — final fit; visually close to the ground truth.</figcaption>
+        </figure>
+      </div>
+
+      <div class="answer">
+        <div class="label">Observations — test image</div>
+        <ul>
+          <li>The network first learns low-frequency color structure (global background and large shapes).</li>
+          <li>As training continues, higher frequency details (edges, fur texture, small contrast variations) are filled in.</li>
+          <li>By ~1,000–1,500 iterations the reconstruction is nearly indistinguishable from the source image.</li>
+        </ul>
+      </div>
+
+      <h3>Your own image</h3>
+      <p>
+        I repeat the same experiment on one of my own images (e.g., <span class="kbd">linkedin.png</span>), using the
+        same architecture and training hyperparameters. The behavior is similar, but the convergence speed and final
+        PSNR depend on how complex the image is (fine details vs. large flat regions).
+      </p>
+
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p4/part1_own_gt.png" alt="Own image ground truth"/>
+          <figcaption class="figcap">Ground-truth personal image.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p4/part1_own_iter_000.png" alt="Own image reconstruction iter 0"/>
+          <figcaption class="figcap">Iteration 0 — random initialization.</figcaption>
+        </figure>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p4/part1_own_iter_100.png" alt="Own image reconstruction iter 100"/>
+          <figcaption class="figcap">Iteration 100 — coarse layout and average colors are already visible.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p4/part1_own_iter_600.png" alt="Own image reconstruction iter 600"/>
+          <figcaption class="figcap">Iteration 600 — boundaries and facial features sharpen.</figcaption>
+        </figure>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p4/part1_own_iter_1500.png" alt="Own image reconstruction iter 1500"/>
+          <figcaption class="figcap">Iteration 1500 — final reconstruction; high-frequency details closely match GT.</figcaption>
+        </figure>
+      </div>
+
+      <div class="answer">
+        <div class="label">Observations — own image</div>
+        <ul>
+          <li>Structured regions like backgrounds and clothing are captured quickly.</li>
+          <li>Human features (eyes, mouth, hair edges) require more iterations and benefit heavily from higher PE frequencies.</li>
+          <li>The model still tends to smooth extremely high-frequency textures, especially when width or <span class="kbd">L</span> are small.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ====================== 1.4 — Hyperparameter Sweep (2×2 Grid) ====================== -->
+    <section class="section" id="p14-hparams">
+      <h2>Part 1.4 — Effect of Width &amp; Positional Encoding Frequencies</h2>
+      <p>
+        To understand how capacity and frequency content affect the neural field, I sweep over:
+      </p>
+      <ul>
+        <li><strong>Widths:</strong> <span class="kbd">64</span> and <span class="kbd">256</span></li>
+        <li><strong>Max PE frequencies:</strong> <span class="kbd">L = 4</span> and <span class="kbd">L = 10</span></li>
+      </ul>
+      <p>
+        For each combination, I train for 1,200 iterations and visualize the final reconstruction, yielding a 2×2 grid.
+      </p>
+
+      <div class="figure figure-center" style="max-width: 980px;">
+        <img src="p4/part1_test_sweep_2x2.png" alt="2x2 grid of hyperparameter sweep results"/>
+        <figcaption class="figcap">
+          2×2 hyperparameter sweep on the test image:
+          top row uses width = 64, bottom row width = 256; left column uses <span class="kbd">L = 4</span>,
+          right column uses <span class="kbd">L = 10</span>.
+        </figcaption>
+      </div>
+
+      <div class="answer">
+        <div class="label">Hyperparameter effects</div>
+        <ul>
+          <li><strong>Low width, low L (64, 4):</strong> the network mainly captures global color gradients and big shapes.
+            Fine textures and sharp edges are heavily smoothed; the result looks like a blurred painting.</li>
+          <li><strong>Low width, high L (64, 10):</strong> adding higher frequencies lets the network represent sharper
+            detail, but limited width can underfit in complex regions and introduce mild ringing artifacts.</li>
+          <li><strong>High width, low L (256, 4):</strong> more channels increase capacity, but without high-frequency PE
+            the model still struggles to capture very sharp corners and tiny details.</li>
+          <li><strong>High width, high L (256, 10):</strong> best overall reconstruction: the network fits both global
+            structure and fine texture, and visually matches the ground-truth image the most closely.</li>
+        </ul>
+      </div>
+
+      <div class="figure">
+<pre class="codeblock"><code># 2×2 sweep code (for the test image)
+widths = [64, 256]
+freqs  = [4, 10]
+configs = [(w, L) for w in widths for L in freqs]
+
+results = []
+for (w, L) in configs:
+    print("=== Sweep:", {"width": w, "L": L}, "===")
+    _, r = run_one(
+        "wolf.jpg",
+        max_side=256,
+        L=L, width=w, depth=4,
+        iters=1200,
+        batch_size=10_000,
+        lr=1e-2,
+        eval_every=200,
+        progress_snaps=[1200],  # only save final
+        device=device,
+    )
+    results.append(r)
+
+grid_2x2(img1.numpy(), configs, results)</code></pre>
+        <figcaption class="figcap">
+          Driver code for the 2×2 width/frequency sweep.
+        </figcaption>
+      </div>
+    </section>
+
+    <!-- ====================== 1.5 — PSNR Curve ====================== -->
+    <section class="section" id="p15-psnr">
+      <h2>Part 1.5 — PSNR Curve Over Training</h2>
+      <p>
+        Finally, I plot the PSNR over training iterations for one image (here, the test image). Each evaluation point
+        renders the full image with the current neural field and computes PSNR with respect to the ground truth.
+      </p>
+
+      <div class="figure figure-center" style="max-width: 640px;">
+        <img src="p4/part1_psnr_curve_test.png" alt="PSNR curve vs iteration"/>
+        <figcaption class="figcap">
+          PSNR (dB) vs. iteration for the test image, using width = 128 and L = 10.
+        </figcaption>
+      </div>
+
+      <div class="answer">
+        <div class="label">PSNR behavior</div>
+        <ul>
+          <li>PSNR increases rapidly in the first few hundred iterations as low-frequency structure is learned.</li>
+          <li>After ~600–800 iterations, gains become more gradual as the model refines medium- and high-frequency details.</li>
+          <li>The curve flattens around 1,200–1,500 iterations, suggesting the model has reached a good fit given its capacity and PE frequencies.</li>
+        </ul>
+      </div>
+    </section>
+
   </main>
 
   <footer class="container footer">
