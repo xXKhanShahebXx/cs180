@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Project 5A — Diffusion Models, Inpainting & Optical Illusions</title>
+  <title>Project 4 — Neural Radiance Field!</title>
   <meta name="theme-color" content="#0f1226"/>
   <link rel="stylesheet" href="assets/style.css?v=2"/>
 </head>
@@ -14,527 +14,1067 @@
       <div class="breadcrumb">
         <a href="index.html">← Back to Home</a>
         <span>·</span>
-        <span>Project 5A — Diffusion Models</span>
+        <span>Project 4 — Neural Radiance Field!</span>
       </div>
     </div>
   </nav>
 
   <main class="container">
-
-    <!-- ====================== OVERVIEW ====================== -->
+    <!-- Overview -->
     <section class="section" id="overview">
-      <h1 class="proj-title">Project 5A — Diffusion Models, Sampling, Inpainting & Illusions</h1>
-      <p class="proj-sub">
-        In Part A, I explore diffusion models through the DeepFloyd IF pipeline. I implement the forward noising process,
-        write custom sampling/denoising loops, and then adapt these loops for image-to-image editing, inpainting, and
-        classic diffusion-based optical illusions (visual anagrams + hybrid images).
+      <h1 class="proj-title">Neural Radiance Field!</h1>
+      <p>
+        In this project I implement a full Neural Radiance Field (NeRF) pipeline. I start by calibrating my own
+        camera and capturing a 3D scan of a real object, then estimate per-view camera poses with ArUco tags, and
+        finally undistort/crop the images into a NeRF-ready dataset. Later parts of the project train and evaluate
+        NeRF models on both the provided Lego scene and my custom capture.
       </p>
-
       <div class="callout">
         <strong>High-level structure</strong>
         <ul>
-          <li><strong>Part 0:</strong> Setup, prompt embeddings, and baseline text-to-image samples.</li>
-          <li><strong>Part 1:</strong> Forward process + classical denoising, one-step denoising, iterative denoising,
-            CFG sampling, SDEdit, inpainting, text-conditional edits.</li>
-          <li><strong>Part 1.8–1.9:</strong> Visual Anagrams and Factorized Diffusion Hybrid Images.</li>
-          <li><strong>(Optional):</strong> Extra explorations if applicable for the course version.</li>
+          <li><strong>Part 0:</strong> Camera calibration, pose estimation, Viser visualization, and dataset packaging.</li>
+          <li><strong>Part 1:</strong> Neural field fitting on 2D images (coordinate-based MLP + positional encoding).</li>
+          <li><strong>Part 2:</strong> Training and visualizing NeRF on both the Lego dataset and my own object scan.</li>
         </ul>
-      </div>
-
-      <div class="callout">
-        <strong>Jump to</strong>
-        <div class="cta-row" style="margin-top:8px">
-          <a class="btn secondary" href="#p0-setup">Part 0</a>
-          <a class="btn secondary" href="#p11-forward">1.1</a>
-          <a class="btn secondary" href="#p14-iter">1.4</a>
-          <a class="btn secondary" href="#p16-cfg">1.6</a>
-          <a class="btn secondary" href="#p17-sdedit">1.7</a>
-          <a class="btn secondary" href="#p18-anagrams">1.8</a>
-          <a class="btn secondary" href="#p19-hybrids">1.9</a>
-        </div>
       </div>
     </section>
 
     <!-- ====================== PART 0 ====================== -->
-    <section class="section" id="p0-setup">
-      <h1 class="proj-title">Part 0 — Setup & Text-to-Image with DeepFloyd IF</h1>
+    <section class="section" id="p0-overview">
+      <h1 class="proj-title">Part 0 — Camera Calibration, Pose Estimation &amp; Dataset Packaging</h1>
       <p>
-        I gained access to DeepFloyd IF via Hugging Face, generated prompt embeddings, and sampled Stage I
-        text-to-image outputs. I experimented with multiple prompts and adjusted
-        <span class="kbd">num_inference_steps</span> to observe the quality/speed trade-off.
+        In this part I take my own photos with a phone camera, calibrate its intrinsics using ArUco tags,
+        estimate camera poses for a 3D scan of an object, visualize the camera frustums in 3D with Viser,
+        and finally undistort / crop / split the images into a NeRF-ready dataset
+        <span class="kbd">my_data.npz</span>.
       </p>
 
       <div class="callout">
-        <strong>Deliverables</strong>
+        <strong>Deliverables checklist</strong>
         <ul>
-          <li>3 custom prompts with images, captions, and at least two different <span class="kbd">num_inference_steps</span> values.</li>
-          <li>Report a fixed random seed used throughout Part A.</li>
+          <li><strong>0.1:</strong> Camera calibration script using ArUco tags + reported intrinsics/distortion &amp; reprojection error.</li>
+          <li><strong>0.2:</strong> 30–50 photos of my chosen object next to a printed tag (fixed zoom/exposure, varying views).</li>
+          <li><strong>0.3:</strong> Pose estimation script that exports <span class="kbd">transforms.json</span> and a Viser visualization of camera frustums (2 screenshots).</li>
+          <li><strong>0.4:</strong> Dataset script that undistorts, crops, (optionally downsamples), splits into train/val/test, and saves <span class="kbd">my_data.npz</span> containing images, c2w matrices, and intrinsics.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ====================== 0.1: Calibration ====================== -->
+    <section class="section" id="p01-calibration">
+      <h2>Part 0.1 — Calibrating My Camera with ArUco Tags</h2>
+      <p>
+        I start by calibrating my phone camera using 30–50 images of printed 4×4 ArUco tags at a fixed zoom
+        (no refocusing or digital zoom between shots). I vary the viewing angle and distance, similar to chessboard
+        calibration: some views are close, some are oblique, and I try to keep the tags well lit and in focus.
+      </p>
+
+      <div class="callout">
+        <strong>Implementation</strong>
+        <ol>
+          <li><strong>Tag model.</strong> I treat each square tag as lying on the z = 0 plane with known metric size
+            <span class="kbd">tag_size</span> (default 0.02&nbsp;m). The 3D corners are
+            <span class="kbd">[(0,0,0), (s,0,0), (s,s,0), (0,s,0)]</span>, matching OpenCV’s corner order
+            (top-left → top-right → bottom-right → bottom-left).
+          </li>
+          <li><strong>Robust marker selection.</strong> For each calibration image, I detect ArUco markers with
+            <span class="kbd">DICT_4X4_50</span> and pick the <em>largest</em> marker by contour area.
+            This stabilizes calibration when multiple tags are visible or when some tags are partially occluded.
+          </li>
+          <li><strong>Collecting correspondences.</strong> For every usable view I append a (4×3) object-point array
+            and its corresponding (4×2) image-point array. Images with no detected tags are safely skipped.</li>
+          <li><strong>Calibration model.</strong> I run <span class="kbd">cv2.calibrateCamera</span> on all collected
+            views, but strongly constrain distortion:
+            <ul>
+              <li>Only <span class="kbd">k1</span> is estimated.</li>
+              <li>Tangential distortion is forced to zero (<span class="kbd">p1 = p2 = 0</span>).</li>
+              <li>Higher-order radial terms (<span class="kbd">k2..k6</span>) are fixed to 0.</li>
+            </ul>
+            This avoids wild fisheye behaviour when fitting high-order terms from only 4 corners per view.
+          </li>
+          <li><strong>Error reporting.</strong> For each view I project the 3D tag corners back into the image,
+            compute the per-view reprojection error, and report the mean over all views alongside the RMS error
+            returned by OpenCV.
+          </li>
+          <li><strong>Saving calibration.</strong> Finally, I save both a human-readable YAML file and a quick-load NPZ:
+            <span class="kbd">camera_calibration.yaml</span> and <span class="kbd">camera_calibration.npz</span>,
+            which contain <span class="kbd">K</span>, <span class="kbd">dist</span>, image size, and error metrics.
+          </li>
+        </ol>
+      </div>
+
+      <div class="figure">
+<pre class="codeblock"><code># Part 0.1 — run calibration
+python part0.py \
+  --task calibrate \
+  --image_dir calibration \
+  --pattern "*.jpg" \
+  --tag_size 0.02 \
+  --min_views 12 \
+  --out_yaml camera_calibration.yaml \
+  --out_npz camera_calibration.npz
+
+# Core 3D tag model (world == tag coordinates)
+def make_tag_object_points(tag_size: float) -&gt; np.ndarray:
+    s = float(tag_size)
+    return np.array([
+        [0.0, 0.0, 0.0],  # top-left
+        [s,   0.0, 0.0],  # top-right
+        [s,    s,  0.0],  # bottom-right
+        [0.0,  s,  0.0],  # bottom-left
+    ], dtype=np.float32)</code></pre>
+        <figcaption class="figcap">
+          Calibration entry point and 3D tag geometry; each successful image contributes four 2D–3D correspondences.
+        </figcaption>
+      </div>
+
+      <div class="answer">
+        <div class="label">Calibration summary</div>
+        <ul>
+          <li><strong>Usable views:</strong> a subset of the 30–50 images where at least one tag was detected.</li>
+          <li><strong>Errors:</strong> RMS reprojection error is low (&lt; 1&nbsp;px), and per-view errors cluster
+            around this value, indicating a stable calibration.</li>
+          <li><strong>Model:</strong> a simple pinhole camera with only <span class="kbd">k1</span> free is sufficient
+            for my phone images; constraining higher-order terms prevents overfitting and extreme distortion.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ====================== 0.2: Capture ====================== -->
+    <section class="section" id="p02-capture">
+      <h2>Part 0.2 — Capturing a 3D Object Scan</h2>
+      <p>
+        With intrinsics fixed, I next capture a 3D scan of an object placed next to a printed ArUco tag.
+        I keep the <strong>same camera and zoom level</strong> as in calibration to ensure that the intrinsics
+        remain valid.
+      </p>
+
+      <div class="callout">
+        <strong>Capture procedure</strong>
+        <ul>
+          <li>Print a single 4×4 ArUco tag (from the assignment’s generator) and leave a white border for reliable detection.</li>
+          <li>Place the object and tag on a tabletop; treat the tag plane as the world coordinate frame (z = 0).</li>
+          <li>Use the same phone and zoom setting as in Part 0.1; lock exposure/white balance if possible.</li>
+          <li>Capture 30–50 images from varying azimuth/elevation angles, but roughly uniform distance so that
+            the object fills ~50% of the frame.</li>
+          <li>Avoid motion blur and strong lighting changes; I reshoot any obviously blurred or overexposed images.</li>
         </ul>
       </div>
 
       <div class="gallery">
         <figure class="figure">
-          <img src="p5a/p0_prompt1.png" alt="DeepFloyd sample for prompt 1"/>
-          <figcaption class="figcap">
-            Prompt 1 — <em>replace with your caption</em>.
-          </figcaption>
+          <img src="p4/i1.jpg" alt="Object scan example view 1"/>
+          <figcaption class="figcap">Example object + tag view (front/side angle).</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p5a/p0_prompt2.png" alt="DeepFloyd sample for prompt 2"/>
-          <figcaption class="figcap">
-            Prompt 2 — <em>replace with your caption</em>.
-          </figcaption>
+          <img src="p4/i2.jpg" alt="Object scan example view 2"/>
+          <figcaption class="figcap">Another view from a higher elevation.</figcaption>
         </figure>
       </div>
+    </section>
 
-      <div class="figure figure-center">
-        <img src="p5a/p0_prompt3_steps_compare.png" alt="Comparison across different inference steps"/>
+    <!-- ====================== 0.3: Pose Estimation ====================== -->
+    <section class="section" id="p03-pnp">
+      <h2>Part 0.3 — Estimating Camera Poses with solvePnP</h2>
+      <p>
+        Using the calibrated intrinsics, I estimate the camera pose (camera-to-world transform) for every scan image.
+        Each pose comes from a minimal PnP instance: the four ArUco corners in 3D (world) and their 2D projections
+        in the image.
+      </p>
+
+      <div class="callout">
+        <strong>Implementation</strong>
+        <ol>
+          <li><strong>Loading calibration.</strong> I load <span class="kbd">K</span>, distortion coefficients, and
+            image size from <span class="kbd">camera_calibration.yaml</span> or the NPZ file.
+          </li>
+          <li><strong>Detection &amp; filtering.</strong> For each image in <span class="kbd">data/</span> I:
+            <ul>
+              <li>Verify that the resolution matches the calibration resolution.</li>
+              <li>Detect ArUco markers and pick the largest marker in the frame.</li>
+              <li>Skip the image if no tag is found (no crash on bad frames).</li>
+            </ul>
+          </li>
+          <li><strong>PnP pose solve.</strong> With known 3D tag corners and detected 2D corners, I run
+            <span class="kbd">cv2.solvePnP</span> (ITERATIVE). If it fails, I fall back to
+            <span class="kbd">cv2.solvePnPRansac</span> for extra robustness.
+          </li>
+          <li><strong>Reprojection sanity check.</strong> For each solved pose I reproject the tag corners and compute
+            the average L2 error in pixels; this is logged per frame as a quality indicator.</li>
+          <li><strong>World frame convention.</strong> OpenCV returns <span class="kbd">X_cam = R X_world + t</span>
+            (world-&gt;camera). I convert this to camera-to-world (c2w) with
+            <span class="kbd">Rᵀ</span> and <span class="kbd">-Rᵀ t</span>, treating the tag as the world origin.
+          </li>
+          <li><strong>NeRF-style JSON.</strong> I collect all successful frames in a <span class="kbd">transforms.json</span>
+            file that follows the typical NeRF format:
+            <ul>
+              <li>Top-level intrinsics: <span class="kbd">fl_x</span>, <span class="kbd">fl_y</span>, <span class="kbd">cx</span>, <span class="kbd">cy</span>, <span class="kbd">w</span>, <span class="kbd">h</span>, and radial/tangential distortion terms.</li>
+              <li>A <span class="kbd">frames</span> list where each entry stores
+                <span class="kbd">file_path</span>, <span class="kbd">transform_matrix</span> (flattened 4×4 c2w),
+                and diagnostics like reprojection error and tag id.</li>
+            </ul>
+          </li>
+          <li><strong>Optional undistortion for visualization.</strong> If an <span class="kbd">--undistort_dir</span> is
+            given, I create undistorted/cropped debug copies using <span class="kbd">getOptimalNewCameraMatrix</span>;
+            however, <em>transforms.json always points to the original raw images</em> so that the final dataset step
+            is the only place where undistortion happens (avoids double-undistort).
+          </li>
+        </ol>
+      </div>
+
+      <div class="figure">
+<pre class="codeblock"><code># Part 0.3 — pose estimation &amp; transforms.json
+python part0.py \
+  --task pose \
+  --data_dir data \
+  --data_pattern "*.jpg" \
+  --calib_yaml camera_calibration.yaml \
+  --calib_npz camera_calibration.npz \
+  --tag_size 0.02 \
+  --out_json transforms.json \
+  --undistort_dir undistort_debug \
+  --debug_draw \
+  --viser</code></pre>
         <figcaption class="figcap">
-          Prompt 3 with two different <span class="kbd">num_inference_steps</span> settings to compare fidelity vs speed.
+          Command used to estimate per-image poses and launch a Viser server for 3D visualization.
         </figcaption>
       </div>
 
+      <div class="gallery figure-center">
+        <figure class="figure">
+          <img src="p4/Viser-11-13-2025_11_08_PM.png" alt="Viser camera cloud view 1"/>
+          <figcaption class="figcap">
+            Camera frustums orbiting the object (view 1); each frustum is textured with its corresponding image.
+          </figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p4/Viser-11-13-2025_11_09_PM.png" alt="Viser camera cloud view 2"/>
+          <figcaption class="figcap">
+            Same camera cloud from a different viewpoint, illustrating the coverage in elevation.
+          </figcaption>
+        </figure>
+      </div>
+
       <div class="answer">
-        <div class="label">Notes</div>
+        <div class="label">Pose estimation notes</div>
         <ul>
-          <li>I keep a single fixed seed for reproducibility across all later parts.</li>
-          <li>Higher inference steps generally produce cleaner structure and better prompt alignment.</li>
+          <li>Frames where the tag is too small, occluded, or blurred are automatically skipped rather than breaking the pipeline.</li>
+          <li>The resulting camera cloud roughly traces a ring around the object with modest vertical variation, a good configuration for NeRF training.</li>
+          <li>By consistently treating the tag plane as world space and inverting OpenCV’s world-&gt;camera transform, the c2w matrices are directly usable in later parts.</li>
         </ul>
       </div>
     </section>
 
+    <!-- ====================== 0.4: Dataset Packaging ====================== -->
+    <section class="section" id="p04-dataset">
+      <h2>Part 0.4 — Undistorting Images &amp; Creating a NeRF Dataset</h2>
+      <p>
+        The final step is to undistort/crop the images, optionally downsample them, and package everything into a single
+        <span class="kbd">.npz</span> file with intrinsics and camera poses. This NPZ matches the format expected by
+        the NeRF training code used later in the project.
+      </p>
+
+      <div class="callout">
+        <strong>Dataset pipeline</strong>
+        <ol>
+          <li><strong>Load calibration &amp; transforms.</strong> I load <span class="kbd">K</span>,
+            <span class="kbd">dist</span>, and the original image size from Part 0.1, then read all frames from
+            <span class="kbd">transforms.json</span>. Each frame provides a file path and a 4×4 c2w matrix.
+          </li>
+          <li><strong>Optimal undistortion &amp; cropping.</strong> To remove distortion and avoid black borders, I:
+            <ul>
+              <li>Call <span class="kbd">cv2.getOptimalNewCameraMatrix(K, dist, ... , alpha=0)</span> to obtain a new camera matrix
+                and a rectangular ROI of valid pixels.</li>
+              <li>Undistort each image with <span class="kbd">cv2.undistort</span> using <span class="kbd">newK</span>, then crop to the ROI.</li>
+              <li>Update the principal point by subtracting the crop offset: <span class="kbd">cx -= x_roi</span>,
+                <span class="kbd">cy -= y_roi</span>.</li>
+            </ul>
+          </li>
+          <li><strong>Optional resizing.</strong> If <span class="kbd">resize_scale ≠ 1.0</span>, I downsample the
+            cropped images using <span class="kbd">cv2.INTER_AREA</span> and scale the intrinsics
+            (<span class="kbd">fx, fy, cx, cy</span>) by the same factor.</li>
+          <li><strong>RGB conversion &amp; dumping.</strong> The final training images are stored as uint8 RGB arrays
+            in [0, 255]. Optionally, I also dump these processed images to a folder for sanity-check visualization.</li>
+          <li><strong>Train/val/test split.</strong> I shuffle the frames with a fixed random seed and partition them
+            into train/val/test according to user-specified ratios (default 80/10/10), ensuring non-empty splits when possible.</li>
+          <li><strong>Saving NPZ.</strong> Finally, I save:
+            <ul>
+              <li><span class="kbd">images_train</span>, <span class="kbd">c2ws_train</span></li>
+              <li><span class="kbd">images_val</span>, <span class="kbd">c2ws_val</span></li>
+              <li><span class="kbd">c2ws_test</span> (test images use the same underlying image tensor as train/val)</li>
+              <li>Intrinsics for the final resolution: <span class="kbd">focal</span> (alias for <span class="kbd">fx</span>),
+                plus <span class="kbd">fx, fy, cx, cy</span>.</li>
+            </ul>
+          </li>
+        </ol>
+      </div>
+
+      <div class="figure">
+<pre class="codeblock"><code># Part 0.4 — build my_data.npz from transforms.json
+python part0.py \
+  --task dataset \
+  --transforms transforms.json \
+  --calib_yaml camera_calibration.yaml \
+  --calib_npz camera_calibration.npz \
+  --dataset_npz my_data.npz \
+  --train_ratio 0.8 \
+  --val_ratio 0.1 \
+  --test_ratio 0.1 \
+  --resize_scale 1.0 \
+  --dataset_undistort_dir dataset_images</code></pre>
+        <figcaption class="figcap">
+          Single command that undistorts/crops all views, splits them into train/val/test, and writes
+          <span class="kbd">my_data.npz</span>.
+        </figcaption>
+      </div>
+
+      <div class="answer">
+        <div class="label">Final dataset properties</div>
+        <ul>
+          <li><strong>Resolution:</strong> after cropping (and any downsampling), all images share the same <span class="kbd">H×W</span> shape and intrinsics.</li>
+          <li><strong>Consistency:</strong> c2w matrices are exactly those exported in <span class="kbd">transforms.json</span>, so the NeRF sees a coherent camera rig.</li>
+          <li><strong>Compatibility:</strong> the resulting NPZ mirrors the structure of the provided Lego dataset, allowing me to plug
+            <span class="kbd">my_data.npz</span> directly into the NeRF training/validation code in Parts 1 and 2.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ===================================================== -->
     <!-- ====================== PART 1 ====================== -->
+    <!-- ===================================================== -->
+
     <section class="section" id="p1-overview">
-      <h1 class="proj-title">Part 1 — Sampling Loops & Diffusion-Based Editing</h1>
+      <h1 class="proj-title">Part 1 — Neural Field for a 2D Image</h1>
       <p>
-        In this part I implement core diffusion mechanics: the forward process, one-step denoising,
-        and accelerated iterative denoising using a strided schedule. I then extend the same loop with
-        classifier-free guidance (CFG) and apply it to sampling, SDEdit-style image-to-image translation,
-        and inpainting.
-      </p>
-    </section>
-
-    <!-- ====================== 1.1 Forward Process ====================== -->
-    <section class="section" id="p11-forward">
-      <h2>Part 1.1 — Implementing the Forward Process</h2>
-      <p>
-        I implement <span class="kbd">forward(im, t)</span> using the cumulative noise schedule
-        <span class="kbd">alphas_cumprod</span>. Starting from a clean Campanile image, I generate
-        progressively noisier versions at increasing timesteps.
+        Before jumping into full 3D NeRFs, I first implement a 2D <em>neural field</em> that fits a single RGB image.
+        Instead of mapping 3D position + viewing direction to color and density, this network maps
+        normalized 2D pixel coordinates <span class="kbd">(x, y)</span> to RGB values <span class="kbd">(r, g, b)</span>.
+        The model is a coordinate-based MLP with sinusoidal positional encoding, trained with random-pixel minibatches.
       </p>
 
       <div class="callout">
-        <strong>Deliverables</strong>
+        <strong>Deliverables checklist</strong>
         <ul>
-          <li>Forward function implementation.</li>
-          <li>Noisy Campanile at <span class="kbd">t = 250, 500, 750</span>.</li>
+          <li>Report model architecture (layers, width, positional encoding frequencies, learning rate).</li>
+          <li>Show training progression on the provided test image and on one of my own images.</li>
+          <li>Show a 2×2 grid of final reconstructions for 2 choices of width and 2 choices of max frequency <span class="kbd">L</span>.</li>
+          <li>Plot the PSNR curve over training for one image.</li>
         </ul>
-      </div>
-
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5a/campanile_clean.png" alt="Original Campanile"/>
-          <figcaption class="figcap">Original 64×64 Campanile.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/campanile_t250.png" alt="Noisy Campanile at t=250"/>
-          <figcaption class="figcap">Forward process at <span class="kbd">t=250</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/campanile_t500.png" alt="Noisy Campanile at t=500"/>
-          <figcaption class="figcap">Forward process at <span class="kbd">t=500</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/campanile_t750.png" alt="Noisy Campanile at t=750"/>
-          <figcaption class="figcap">Forward process at <span class="kbd">t=750</span>.</figcaption>
-        </figure>
       </div>
     </section>
 
-    <!-- ====================== 1.2 Classical Denoising ====================== -->
-    <section class="section" id="p12-gaussian">
-      <h2>Part 1.2 — Classical Denoising with Gaussian Blur</h2>
+    <!-- ====================== 1.1 — Architecture & PE ====================== -->
+    <section class="section" id="p11-arch">
+      <h2>Part 1.1 — MLP Architecture &amp; Sinusoidal Positional Encoding</h2>
       <p>
-        I attempt to denoise the same noisy Campanile images using Gaussian blur. As expected, this baseline
-        struggles to recover structure at high noise levels compared to a learned diffusion prior.
+        The neural field takes a normalized 2D coordinate <span class="kbd">p = (x, y) ∈ [0,1]²</span> and first applies
+        NeRF-style sinusoidal positional encoding, then feeds the result into a fully-connected MLP that predicts an RGB
+        color in <span class="kbd">[0,1]</span>.
       </p>
 
       <div class="callout">
-        <strong>Deliverables</strong>
+        <strong>Model design</strong>
         <ul>
-          <li>Side-by-side noisy vs Gaussian-denoised results for <span class="kbd">t = 250, 500, 750</span>.</li>
+          <li><strong>Positional Encoding (PE).</strong> For each coordinate <span class="kbd">p</span>, I use
+            <span class="kbd">L</span> frequency bands and implement:
+            <div class="figure">
+<pre class="codeblock"><code># gamma(p) = [p, sin(2^k pi p), cos(2^k pi p)] for k = 0..L-1
+class PositionalEncoding(nn.Module):
+    def __init__(self, in_dims=2, num_freqs=10, include_input=True):
+        super().__init__()
+        self.in_dims = in_dims
+        self.num_freqs = num_freqs
+        self.include_input = include_input
+        self.register_buffer(
+            "freq_bands",
+            (2.0 ** torch.arange(num_freqs)).float() * math.pi
+        )
+        out_dim = (in_dims if include_input else 0) + 2 * in_dims * num_freqs
+        self.out_dim = out_dim
+
+    def forward(self, x):  # x: (N, 2) in [0,1]
+        outs = []
+        if self.include_input:
+            outs.append(x)
+        xb = x.unsqueeze(-1) * self.freq_bands  # (N, 2, L)
+        outs.append(torch.sin(xb).reshape(x.shape[0], -1))
+        outs.append(torch.cos(xb).reshape(x.shape[0], -1))
+        return torch.cat(outs, dim=-1)</code></pre>
+              <figcaption class="figcap">
+                Sinusoidal positional encoding: for <span class="kbd">L=10</span>, the 2D coordinate is mapped to a
+                42-D feature vector.
+              </figcaption>
+            </div>
+          </li>
+          <li><strong>Neural Field MLP.</strong> The neural field itself is a ReLU MLP:
+            <span class="kbd">[Linear(width) + ReLU] × depth → Linear(3) → Sigmoid</span>.
+            The final Sigmoid ensures outputs lie in <span class="kbd">[0,1]</span>.
+            <div class="figure">
+<pre class="codeblock"><code>class NeuralField2D(nn.Module):
+    def __init__(self, in_dim, width=128, depth=4, out_dim=3):
+        super().__init__()
+        layers = []
+        last = in_dim
+        for _ in range(depth):
+            layers += [nn.Linear(last, width), nn.ReLU(inplace=True)]
+            last = width
+        layers += [nn.Linear(last, out_dim), nn.Sigmoid()]
+        self.net = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.net(x)</code></pre>
+              <figcaption class="figcap">
+                Base architecture used in Part 1: depth = 4, width in {64, 128, 256}, and
+                <span class="kbd">L ∈ {4, 10}</span> for the PE sweep.
+              </figcaption>
+            </div>
+          </li>
+          <li><strong>Coordinate parameterization.</strong> I index each pixel by normalized coordinates:
+            <span class="kbd">x = col / (W-1)</span>, <span class="kbd">y = row / (H-1)</span>, so the domain is
+            always <span class="kbd">[0,1]²</span> regardless of resolution.
+          </li>
         </ul>
       </div>
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5a/gauss_t250_pair.png" alt="Noisy and Gaussian blurred at t=250"/>
-          <figcaption class="figcap">Noisy vs Gaussian blur at <span class="kbd">t=250</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/gauss_t500_pair.png" alt="Noisy and Gaussian blurred at t=500"/>
-          <figcaption class="figcap">Noisy vs Gaussian blur at <span class="kbd">t=500</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/gauss_t750_pair.png" alt="Noisy and Gaussian blurred at t=750"/>
-          <figcaption class="figcap">Noisy vs Gaussian blur at <span class="kbd">t=750</span>.</figcaption>
-        </figure>
+      <div class="answer">
+        <div class="label">Reported base architecture</div>
+        <ul>
+          <li><strong>Depth:</strong> 4 hidden layers.</li>
+          <li><strong>Width:</strong> 128 channels (sweep also uses 64 and 256).</li>
+          <li><strong>PE frequencies:</strong> default <span class="kbd">L = 10</span> (sweep also at <span class="kbd">L = 4</span>).</li>
+          <li><strong>Activation:</strong> ReLU, with a final Sigmoid on RGB.</li>
+          <li><strong>Optimizer:</strong> Adam with learning rate <span class="kbd">1e-2</span>.</li>
+          <li><strong>Batch size:</strong> 10,000 pixels per iteration.</li>
+          <li><strong>Iterations:</strong> 1,200–1,500 depending on the experiment.</li>
+        </ul>
       </div>
     </section>
 
-    <!-- ====================== 1.3 One-Step Denoising ====================== -->
-    <section class="section" id="p13-onestep">
-      <h2>Part 1.3 — One-Step Denoising with the Pretrained UNet</h2>
+    <!-- ====================== 1.2 — Dataloader & Training Loop ====================== -->
+    <section class="section" id="p12-training">
+      <h2>Part 1.2 — Random-Pixel Dataloader, Loss, and Training Loop</h2>
       <p>
-        Using the Stage I UNet conditioned on timestep and a weak prompt embedding
-        (<span class="kbd">"a high quality photo"</span>), I estimate the Gaussian noise and recover an
-        approximation of the original Campanile in a single denoising step.
+        Training the neural field on every pixel at every step is wasteful and can exceed GPU memory for large images.
+        Instead, I treat each pixel as a training sample and randomly subsample a large mini-batch of pixels each
+        iteration.
       </p>
 
       <div class="callout">
-        <strong>Deliverables</strong>
-        <ul>
-          <li>Original, noisy, and one-step denoised comparisons for <span class="kbd">t = 250, 500, 750</span>.</li>
-        </ul>
+        <strong>Dataloader + training setup</strong>
+        <ol>
+          <li><strong>Image preprocessing.</strong> I load the RGB image as a <span class="kbd">(H, W, 3)</span> uint8
+            tensor, then normalize to <span class="kbd">[0,1]</span> and flatten to <span class="kbd">(H·W, 3)</span>
+            for supervision:
+            <span class="kbd">gt = img.float() / 255.0</span>.
+          </li>
+          <li><strong>Coordinate grid.</strong> I precompute all coordinates once:
+            <div class="figure">
+<pre class="codeblock"><code>def make_coords(H, W, device):
+    ys = torch.linspace(0.0, 1.0, H, device=device)
+    xs = torch.linspace(0.0, 1.0, W, device=device)
+    ys, xs = torch.meshgrid(ys, xs, indexing="ij")
+    return torch.stack([xs, ys], dim=-1).view(-1, 2)</code></pre>
+              <figcaption class="figcap">
+                Normalized coordinate grid used as input to the positional encoding.
+              </figcaption>
+            </div>
+          </li>
+          <li><strong>Random pixel batches.</strong> Each iteration samples
+            <span class="kbd">batch_size = 10,000</span> random indices into the flattened coordinate/color arrays:
+            <div class="figure">
+<pre class="codeblock"><code>idx = torch.randint(0, H*W, (batch_size,), device=device)
+coords = coords_all[idx]          # (B, 2)
+target = gt[idx]                  # (B, 3)
+pred = model(pe(coords))          # (B, 3)</code></pre>
+              <figcaption class="figcap">
+                Stochastic training over random pixels, equivalent to using a batch size of 10k.
+              </figcaption>
+            </div>
+          </li>
+          <li><strong>Loss &amp; optimizer.</strong> I use MSE loss between predicted and ground-truth colors, with Adam:
+            <div class="figure">
+<pre class="codeblock"><code>loss = F.mse_loss(pred, target)
+optim = torch.optim.Adam(model.parameters(), lr=1e-2)
+optim.zero_grad(set_to_none=True)
+loss.backward()
+optim.step()</code></pre>
+              <figcaption class="figcap">
+                Basic training step for the neural field.
+              </figcaption>
+            </div>
+          </li>
+          <li><strong>PSNR metric.</strong> Every <span class="kbd">eval_every</span> iterations, I render the full
+            image and compute MSE and PSNR:
+            <div class="figure">
+<pre class="codeblock"><code>def psnr_from_mse(mse):
+    return -10.0 * torch.log10(mse.clamp(min=1e-12))
+
+with torch.no_grad():
+    full_pred = render_full_image(model, pe, H, W, device)
+    mse = F.mse_loss(full_pred.view(-1,3), gt)
+    psnr = psnr_from_mse(mse).item()</code></pre>
+              <figcaption class="figcap">
+                PSNR (in dB) is used to track reconstruction quality during training.
+              </figcaption>
+            </div>
+          </li>
+        </ol>
       </div>
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5a/onestep_t250_triplet.png" alt="Original, noisy, and one-step denoise at t=250"/>
-          <figcaption class="figcap">One-step denoising at <span class="kbd">t=250</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/onestep_t500_triplet.png" alt="Original, noisy, and one-step denoise at t=500"/>
-          <figcaption class="figcap">One-step denoising at <span class="kbd">t=500</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/onestep_t750_triplet.png" alt="Original, noisy, and one-step denoise at t=750"/>
-          <figcaption class="figcap">One-step denoising at <span class="kbd">t=750</span>.</figcaption>
-        </figure>
-      </div>
-    </section>
-
-    <!-- ====================== 1.4 Iterative Denoising ====================== -->
-    <section class="section" id="p14-iter">
-      <h2>Part 1.4 — Iterative Denoising with a Strided Schedule</h2>
-      <p>
-        I construct <span class="kbd">strided_timesteps</span> starting at 990 with stride 30 and implement
-        <span class="kbd">iterative_denoise</span>. This produces significantly better reconstructions than a
-        single-step estimate, especially at moderate noise levels.
-      </p>
-
-      <div class="callout">
-        <strong>Deliverables</strong>
-        <ul>
-          <li>Strided timestep schedule initialization.</li>
-          <li>Denoising loop visualization (every 5th step).</li>
-          <li>Comparison to one-step denoising and Gaussian blur.</li>
-        </ul>
-      </div>
-
-      <div class="figure figure-center">
-        <img src="p5a/iter_progress_strip.png" alt="Iterative denoising progression"/>
+      <div class="figure">
+<pre class="codeblock"><code># High-level training driver
+img_uint8, result = run_one(
+    image_path="wolf.jpg",   # test image
+    max_side=256,
+    L=10, width=128, depth=4,
+    iters=1500,
+    batch_size=10_000,
+    lr=1e-2,
+    eval_every=100,
+    progress_snaps=[0, 50, 100, 300, 600, 1000, 1500],
+    device=device,
+)</code></pre>
         <figcaption class="figcap">
-          Iterative denoising progression (every 5th step) starting from a noisy Campanile at
-          <span class="kbd">i_start = 10</span>.
+          Configuration used for the main experiment on the provided test image.
+        </figcaption>
+      </div>
+    </section>
+
+    <!-- ====================== 1.3 — Training Progression ====================== -->
+    <section class="section" id="p13-progress">
+      <h2>Part 1.3 — Training Progression on Two Images</h2>
+      <p>
+        I visualize how the neural field gradually fits an image by showing a ground-truth reference and a horizontal
+        strip containing reconstructions at different iterations. I do this for both the provided test image and one of
+        my own images.
+      </p>
+
+      <h3>Test image (provided)</h3>
+      <p>
+        The test image is a natural image (e.g., <span class="kbd">wolf.jpg</span>). The strip on the right shows the
+        reconstructions at increasing iterations from left to right (e.g., 0 → 50 → 100 → 300 → 600 → 1000 → 1500).
+      </p>
+
+      <!-- Ground truth, centered and reasonably sized -->
+      <div class="figure figure-center" style="max-width: 520px;">
+        <img src="p4/wolf.jpg" alt="Test image ground truth"/>
+        <figcaption class="figcap">Ground-truth test image.</figcaption>
+      </div>
+
+      <!-- Progress strip below, larger width -->
+      <div class="figure figure-center" style="max-width: 980px; margin-top: 16px;">
+        <img src="p4/1_iter.png" alt="Test image training progression strip"/>
+        <figcaption class="figcap">
+          Training progression: each tile in the strip is the neural field’s reconstruction at a later iteration,
+          from left (early, blurry) to right (late, sharp).
         </figcaption>
       </div>
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5a/iter_final.png" alt="Final iteratively denoised Campanile"/>
-          <figcaption class="figcap">Final iterative reconstruction.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/iter_onestep_compare.png" alt="One-step comparison"/>
-          <figcaption class="figcap">One-step reconstruction (worse).</figcaption>
-        </figure>
-      </div>
-
-      <div class="figure figure-center" style="max-width: 740px;">
-        <img src="p5a/iter_gauss_compare.png" alt="Gaussian blur comparison"/>
-        <figcaption class="figcap">Gaussian blur baseline for reference.</figcaption>
-      </div>
-    </section>
-
-    <!-- ====================== 1.5 Sampling from Noise ====================== -->
-    <section class="section" id="p15-sampling">
-      <h2>Part 1.5 — Diffusion Model Sampling (Unconditional-ish)</h2>
-      <p>
-        By setting <span class="kbd">i_start = 0</span> and initializing with pure Gaussian noise, I use the
-        iterative denoising loop to generate images from scratch using the weak prompt
-        <span class="kbd">"a high quality photo"</span>.
-      </p>
-
-      <div class="callout">
-        <strong>Deliverables</strong>
+      <div class="answer">
+        <div class="label">Observations — test image</div>
         <ul>
-          <li>Five sampled images without CFG.</li>
+          <li>Leftmost tiles in the strip show low-frequency color and coarse structure only.</li>
+          <li>As iterations increase, edges sharpen and mid-frequency details (fur, background texture) appear.</li>
+          <li>By the right end of the strip, the reconstruction is visually very close to the ground truth.</li>
         </ul>
       </div>
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5a/sample_nocfg_1.png" alt="Sample 1 without CFG"/>
-          <figcaption class="figcap">Sample 1 (no CFG).</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/sample_nocfg_2.png" alt="Sample 2 without CFG"/>
-          <figcaption class="figcap">Sample 2 (no CFG).</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/sample_nocfg_3.png" alt="Sample 3 without CFG"/>
-          <figcaption class="figcap">Sample 3 (no CFG).</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/sample_nocfg_4.png" alt="Sample 4 without CFG"/>
-          <figcaption class="figcap">Sample 4 (no CFG).</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/sample_nocfg_5.png" alt="Sample 5 without CFG"/>
-          <figcaption class="figcap">Sample 5 (no CFG).</figcaption>
-        </figure>
-      </div>
-    </section>
-
-    <!-- ====================== 1.6 CFG ====================== -->
-    <section class="section" id="p16-cfg">
-      <h2>Part 1.6 — Classifier-Free Guidance (CFG)</h2>
+      <h3>Own image</h3>
       <p>
-        I implement <span class="kbd">iterative_denoise_cfg</span> by combining conditional and unconditional
-        noise estimates. With a positive CFG scale, generation quality improves significantly at the cost of
-        reduced diversity.
+        I repeat the same experiment on one of my own images (e.g., <span class="kbd">linkedin.png</span>) using the
+        same architecture and training hyperparameters. Again, the strip shows the evolution of the reconstruction over
+        training iterations.
       </p>
 
-      <div class="callout">
-        <strong>Deliverables</strong>
-        <ul>
-          <li>CFG-enabled denoising loop implementation.</li>
-          <li>Five samples of <span class="kbd">"a high quality photo"</span> using CFG.</li>
-        </ul>
+      <!-- Ground truth, centered -->
+      <div class="figure figure-center" style="max-width: 520px;">
+        <img src="p4/linkedin.png" alt="Own image ground truth"/>
+        <figcaption class="figcap">Ground-truth personal image.</figcaption>
       </div>
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5a/sample_cfg_1.png" alt="Sample 1 with CFG"/>
-          <figcaption class="figcap">Sample 1 (CFG).</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/sample_cfg_2.png" alt="Sample 2 with CFG"/>
-          <figcaption class="figcap">Sample 2 (CFG).</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/sample_cfg_3.png" alt="Sample 3 with CFG"/>
-          <figcaption class="figcap">Sample 3 (CFG).</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/sample_cfg_4.png" alt="Sample 4 with CFG"/>
-          <figcaption class="figcap">Sample 4 (CFG).</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/sample_cfg_5.png" alt="Sample 5 with CFG"/>
-          <figcaption class="figcap">Sample 5 (CFG).</figcaption>
-        </figure>
-      </div>
-    </section>
-
-    <!-- ====================== 1.7 SDEdit + Edits ====================== -->
-    <section class="section" id="p17-sdedit">
-      <h2>Part 1.7 — Image-to-Image Translation (SDEdit)</h2>
-      <p>
-        Using CFG from this point onward, I apply SDEdit by adding noise to a real image and then projecting it
-        back to the natural image manifold. I vary the starting index
-        <span class="kbd">i_start ∈ {1, 3, 5, 7, 10, 20}</span>
-        to control edit strength.
-      </p>
-
-      <div class="callout">
-        <strong>Deliverables</strong>
-        <ul>
-          <li>Campanile edits across the required starting indices using the prompt <span class="kbd">"a high quality photo"</span>.</li>
-          <li>Two additional personal images edited with the same procedure.</li>
-        </ul>
-      </div>
-
-      <div class="figure figure-center">
-        <img src="p5a/sdedit_campanile_grid.png" alt="SDEdit Campanile results grid"/>
+      <!-- Progress strip below, larger -->
+      <div class="figure figure-center" style="max-width: 980px; margin-top: 16px;">
+        <img src="p4/2_iter.png" alt="Own image training progression strip"/>
         <figcaption class="figcap">
-          SDEdit on the Campanile across increasing <span class="kbd">i_start</span> values (lower = stronger edits).
+          Training progression on my own image: the network first fits global layout and colors, then sharpens facial
+          features and small textures towards the right end of the strip.
         </figcaption>
       </div>
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5a/sdedit_own1_grid.png" alt="SDEdit on personal image 1"/>
-          <figcaption class="figcap">SDEdit on my image #1.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/sdedit_own2_grid.png" alt="SDEdit on personal image 2"/>
-          <figcaption class="figcap">SDEdit on my image #2.</figcaption>
-        </figure>
-      </div>
-
-      <!-- 1.7.1 -->
-      <div class="callout">
-        <strong>1.7.1 — Non-photorealistic inputs</strong>
-        <p style="margin:8px 0 0">
-          I also apply the same procedure to one web image and two hand-drawn sketches to demonstrate how diffusion
-          can project rough or stylized inputs onto a more realistic manifold.
-        </p>
-      </div>
-
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5a/sdedit_web_grid.png" alt="SDEdit on a web image"/>
-          <figcaption class="figcap">Web image projected across noise levels.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/sdedit_draw1_grid.png" alt="SDEdit on hand-drawn image 1"/>
-          <figcaption class="figcap">Hand-drawn sketch #1 → diffusion edits.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/sdedit_draw2_grid.png" alt="SDEdit on hand-drawn image 2"/>
-          <figcaption class="figcap">Hand-drawn sketch #2 → diffusion edits.</figcaption>
-        </figure>
-      </div>
-
-      <!-- 1.7.2 -->
-      <div class="callout">
-        <strong>1.7.2 — Inpainting</strong>
-        <p style="margin:8px 0 0">
-          I implement inpainting by forcing pixels outside the mask to match the appropriately noised original
-          image at each timestep.
-        </p>
-      </div>
-
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5a/inpaint_campanile_input.png" alt="Campanile input for inpainting"/>
-          <figcaption class="figcap">Input Campanile.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/inpaint_campanile_mask.png" alt="Inpainting mask"/>
-          <figcaption class="figcap">Binary edit mask.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/inpaint_campanile_result.png" alt="Campanile inpainted result"/>
-          <figcaption class="figcap">Inpainted Campanile result.</figcaption>
-        </figure>
-      </div>
-
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5a/inpaint_own1_triplet.png" alt="Personal inpainting example 1"/>
-          <figcaption class="figcap">My image #1 inpainting (input/mask/result).</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/inpaint_own2_triplet.png" alt="Personal inpainting example 2"/>
-          <figcaption class="figcap">My image #2 inpainting (input/mask/result).</figcaption>
-        </figure>
-      </div>
-
-      <!-- 1.7.3 -->
-      <div class="callout">
-        <strong>1.7.3 — Text-conditional image-to-image</strong>
-        <p style="margin:8px 0 0">
-          Finally, I replace the generic prompt with my own prompts to steer edits toward specific semantic changes
-          while still preserving underlying structure at lower noise levels.
-        </p>
-      </div>
-
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5a/text_edit_campanile_grid.png" alt="Text-guided edits on Campanile"/>
-          <figcaption class="figcap">Campanile edits with a custom prompt across <span class="kbd">i_start</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/text_edit_own1_grid.png" alt="Text-guided edits on personal image 1"/>
-          <figcaption class="figcap">My image #1 with text-guided edits.</figcaption>
-        </figure>
+      <div class="answer">
+        <div class="label">Observations — own image</div>
+        <ul>
+          <li>Background and large clothing regions converge quickly as smooth low-frequency patterns.</li>
+          <li>Fine details like eyes, hair edges, and small shadows appear only in the later tiles of the strip.</li>
+          <li>The final tile shows that the neural field can faithfully reproduce both global structure and fine detail
+            even on a personal image not seen in the original assignment.</li>
+        </ul>
       </div>
     </section>
 
-    <!-- ====================== 1.8 Visual Anagrams ====================== -->
-    <section class="section" id="p18-anagrams">
-      <h2>Part 1.8 — Visual Anagrams (Flip Illusions)</h2>
+    <!-- ====================== 1.4 — Hyperparameter Sweep (2×2 Grid) ====================== -->
+    <section class="section" id="p14-hparams">
+      <h2>Part 1.4 — Effect of Width &amp; Positional Encoding Frequencies</h2>
       <p>
-        I implement visual anagrams by denoising an image with two prompts simultaneously: one on the original image
-        and one on a vertically flipped copy. Averaging the aligned noise estimates produces a single image that
-        changes interpretation when flipped upside down.
+        To understand how capacity and frequency content affect the neural field, I sweep over:
+      </p>
+      <ul>
+        <li><strong>Widths:</strong> <span class="kbd">64</span> and <span class="kbd">256</span></li>
+        <li><strong>Max PE frequencies:</strong> <span class="kbd">L = 4</span> and <span class="kbd">L = 10</span></li>
+      </ul>
+      <p>
+        For each combination, I train for 1,200 iterations and visualize the final reconstruction, yielding a 2×2 grid.
       </p>
 
-      <div class="callout">
-        <strong>Deliverables</strong>
+      <div class="figure figure-center" style="max-width: 980px;">
+        <img src="p4/2x2.png" alt="2x2 grid of hyperparameter sweep results"/>
+        <figcaption class="figcap">
+          2×2 hyperparameter sweep on the test image:
+          top row uses width = 64, bottom row width = 256; left column uses <span class="kbd">L = 4</span>,
+          right column uses <span class="kbd">L = 10</span>.
+        </figcaption>
+      </div>
+
+      <div class="answer">
+        <div class="label">Hyperparameter effects</div>
         <ul>
-          <li>Implemented <span class="kbd">visual_anagrams</span> function.</li>
-          <li>Two flip illusions with paired prompts.</li>
+          <li><strong>Low width, low L (64, 4):</strong> the network mainly captures global color gradients and big shapes.
+            Fine textures and sharp edges are heavily smoothed; the result looks like a blurred painting.</li>
+          <li><strong>Low width, high L (64, 10):</strong> adding higher frequencies lets the network represent sharper
+            detail, but limited width can underfit in complex regions and introduce mild ringing artifacts.</li>
+          <li><strong>High width, low L (256, 4):</strong> more channels increase capacity, but without high-frequency PE
+            the model still struggles to capture very sharp corners and tiny details.</li>
+          <li><strong>High width, high L (256, 10):</strong> best overall reconstruction: the network fits both global
+            structure and fine texture, and visually matches the ground-truth image the most closely.</li>
         </ul>
       </div>
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5a/anagram1_upright.png" alt="Visual anagram 1 upright"/>
-          <figcaption class="figcap">Illusion #1 (upright) — <em>Prompt A</em>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/anagram1_flipped.png" alt="Visual anagram 1 flipped"/>
-          <figcaption class="figcap">Illusion #1 (flipped) — <em>Prompt B</em>.</figcaption>
-        </figure>
-      </div>
+      <div class="figure">
+<pre class="codeblock"><code># 2×2 sweep code (for the test image)
+widths = [64, 256]
+freqs  = [4, 10]
+configs = [(w, L) for w in widths for L in freqs]
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5a/anagram2_upright.png" alt="Visual anagram 2 upright"/>
-          <figcaption class="figcap">Illusion #2 (upright) — <em>Prompt A</em>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/anagram2_flipped.png" alt="Visual anagram 2 flipped"/>
-          <figcaption class="figcap">Illusion #2 (flipped) — <em>Prompt B</em>.</figcaption>
-        </figure>
+results = []
+for (w, L) in configs:
+    print("=== Sweep:", {"width": w, "L": L}, "===")
+    _, r = run_one(
+        "wolf.jpg",
+        max_side=256,
+        L=L, width=w, depth=4,
+        iters=1200,
+        batch_size=10_000,
+        lr=1e-2,
+        eval_every=200,
+        progress_snaps=[1200],  # only save final
+        device=device,
+    )
+    results.append(r)
+
+grid_2x2(img1.numpy(), configs, results)</code></pre>
+        <figcaption class="figcap">
+          Driver code for the 2×2 width/frequency sweep.
+        </figcaption>
       </div>
     </section>
 
-    <!-- ====================== 1.9 Hybrid Images ====================== -->
-    <section class="section" id="p19-hybrids">
-      <h2>Part 1.9 — Hybrid Images with Factorized Diffusion</h2>
+    <!-- ====================== 1.5 — PSNR Curve ====================== -->
+    <section class="section" id="p15-psnr">
+      <h2>Part 1.5 — PSNR Curve Over Training</h2>
       <p>
-        To create diffusion-based hybrid images, I combine low-frequency structure from one prompt’s noise estimate
-        with high-frequency detail from another. This mirrors the classic hybrid image idea from Project 2,
-        but performed in the noise-prediction space of a diffusion model.
+        Finally, I plot the PSNR over training iterations for one image (here, the test image). Each evaluation point
+        renders the full image with the current neural field and computes PSNR with respect to the ground truth.
+      </p>
+
+      <div class="figure figure-center" style="max-width: 640px;">
+        <img src="p4/test_psnr.png" alt="PSNR curve vs iteration"/>
+        <figcaption class="figcap">
+          PSNR (dB) vs. iteration for the test image, using width = 128 and L = 10.
+        </figcaption>
+      </div>
+
+      <div class="answer">
+        <div class="label">PSNR behavior</div>
+        <ul>
+          <li>PSNR increases rapidly in the first few hundred iterations as low-frequency structure is learned.</li>
+          <li>After ~600–800 iterations, gains become more gradual as the model refines medium- and high-frequency details.</li>
+          <li>The curve flattens around 1,200–1,500 iterations, suggesting the model has reached a good fit given its capacity and PE frequencies.</li>
+        </ul>
+      </div>
+    </section>
+
+
+        <!-- ===================================================== -->
+    <!-- ====================== PART 2 ====================== -->
+    <!-- ===================================================== -->
+
+    <section class="section" id="p2-overview">
+      <h1 class="proj-title">Part 2 — NeRF from Multi-view Images</h1>
+      <p>
+        In this part I turn the 2D neural field from Part&nbsp;1 into a full Neural Radiance Field (NeRF) that represents
+        a 3D scene from multi-view, calibrated images. I first train on the Lego dataset and then reuse the same pipeline
+        on my own captured object from Part&nbsp;0.
+      </p>
+      <div class="callout">
+        <strong>What I implement</strong>
+        <ul>
+          <li><strong>2.1:</strong> Geometry utilities to go from pixels to world-space rays.</li>
+          <li><strong>2.2–2.3:</strong> Sampling rays and 3D points, and a multi-view <span class="kbd">RaysData</span> dataloader.</li>
+          <li><strong>2.4–2.5:</strong> A NeRF MLP (position + view direction) and differentiable volume rendering.</li>
+          <li><strong>2.6:</strong> Training and visualizing NeRF on Lego and on my own data (novel-view videos).</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ====================== 2.1 — Rays from Cameras ====================== -->
+    <section class="section" id="p21-geometry">
+      <h2>Part 2.1 — Camera &amp; Pixel Geometry → Rays</h2>
+      <p>
+        The goal is to convert pixel coordinates into world-space rays using the known intrinsics and extrinsics for each
+        view. I implement three small geometry helpers:
+      </p>
+      <ul>
+        <li><strong>Camera → world transform:</strong> given homogeneous <span class="kbd">c2w</span>, map a 3D camera-space
+          point <span class="kbd">x_c</span> to world space <span class="kbd">x_w</span>.</li>
+        <li><strong>Pixel → camera inverse projection:</strong> invert the pinhole camera to recover a camera-space point
+          from <span class="kbd">(u, v, depth)</span> using the intrinsics matrix <span class="kbd">K</span>.</li>
+        <li><strong>Pixel → ray:</strong> use the camera origin and a point at depth 1 along the back-projected pixel to define
+          a ray origin <span class="kbd">o</span> and direction <span class="kbd">d</span>.</li>
+      </ul>
+
+      <div class="figure">
+<pre class="codeblock"><code># Pseudocode for pixel → ray
+function pixel_to_ray(K, c2w, uv):
+    # 1) Camera origin in world space
+    cam_o = c2w.translation  # (3,)
+
+    # 2) Back-project pixel to camera coords at depth = 1
+    #    x_c = ( (u-cx)/fx, (v-cy)/fy, 1 ) * depth
+    x_c = pixel_to_camera(K, uv, depth=1.0)
+
+    # 3) Transform to world and normalize direction
+    x_w = transform(c2w, x_c)
+    d   = normalize(x_w - cam_o)
+
+    return cam_o, d</code></pre>
+        <figcaption class="figcap">
+          Pixel&nbsp;→ ray pseudocode. I implement all three helpers in PyTorch with support for batched rays.
+        </figcaption>
+      </div>
+
+      <div class="answer">
+        <div class="label">Sanity checks</div>
+        <ul>
+          <li>I verify that <span class="kbd">x_c ≈ inv(c2w)( transform(c2w, x_c) )</span> for random 3D points.</li>
+          <li>I check that all ray directions are unit-length and that the center pixel’s ray roughly aligns with the
+            camera’s viewing direction.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ====================== 2.2–2.3 — Sampling & RaysData ====================== -->
+    <section class="section" id="p22-sampling">
+      <h2>Part 2.2–2.3 — Sampling Rays &amp; 3D Points (RaysData)</h2>
+      <p>
+        Next, I build the multiview dataloader. It randomly samples pixels across all images, converts them into rays,
+        and then samples 3D points along each ray for NeRF.
       </p>
 
       <div class="callout">
-        <strong>Deliverables</strong>
-        <ul>
-          <li>Implemented <span class="kbd">make_hybrids</span> function.</li>
-          <li>Two hybrid results using paired prompts.</li>
-        </ul>
+        <strong>Ray sampling strategies</strong>
+        <ol>
+          <li><strong>Global sampling:</strong> flatten all <span class="kbd">N_img × H × W</span> pixels and randomly pick
+            indices; each index is mapped back to <span class="kbd">(image_idx, u, v)</span>.</li>
+          <li><strong>Per-image sampling:</strong> choose <span class="kbd">M</span> images at random and sample
+            <span class="kbd">N/M</span> rays per image (useful for debugging single-camera frustums).</li>
+          <li><strong>Ground-truth colors:</strong> at each sampled integer pixel I store the RGB value
+            <span class="kbd">images[img_idx, v, u]</span> as the supervision target.</li>
+        </ol>
       </div>
 
-      <div class="gallery">
+      <div class="figure">
+<pre class="codeblock"><code># Pseudocode: sample N rays from a multiview dataset
+function sample_rays(images, c2ws, K, N, strategy="global"):
+    if strategy == "global":
+        # choose N random pixels over all images
+        choose random (img_idx, u, v) triplets
+    else:
+        # choose M images, then N//M pixels per chosen image
+        ...
+
+    # Convert to float pixel centers
+    uv = (u + 0.5, v + 0.5)
+
+    # Per-sample camera pose
+    c2w_samples = c2ws[img_idx]
+
+    # Pixel → ray and colors
+    ray_o, ray_d = pixel_to_ray(K, c2w_samples, uv)
+    rgb          = images[img_idx, v, u]
+
+    return ray_o, ray_d, rgb</code></pre>
+        <figcaption class="figcap">
+          High-level ray sampling logic used inside my <span class="kbd">RaysData.sample_rays</span> method.
+        </figcaption>
+      </div>
+
+      <div class="callout">
+        <strong>Sampling 3D points along rays</strong>
+        <p>
+          For each ray I create <span class="kbd">n_samples</span> points between <span class="kbd">near</span> and
+          <span class="kbd">far</span> using stratified sampling:
+        </p>
+        <ol>
+          <li>Create bin edges with <span class="kbd">linspace(near, far, n_samples+1)</span>.</li>
+          <li>For training: jitter each interval (random offset within each bin) so every ray covers slightly different
+            depths across iterations.</li>
+          <li>For evaluation: use midpoints of each bin (no randomness).</li>
+          <li>Convert <span class="kbd">t</span> values into 3D points with
+            <span class="kbd">x = o + t·d</span> for each ray.</li>
+        </ol>
+      </div>
+
+      <div class="gallery figure-center">
         <figure class="figure">
-          <img src="p5a/hybrid1.png" alt="Hybrid image 1"/>
-          <figcaption class="figcap">Hybrid #1 — <em>Prompt A (low-pass)</em> + <em>Prompt B (high-pass)</em>.</figcaption>
+          <img src="p4/Viser-11-15-2025_02_55_PM.png" alt="Viser plot of cameras, rays, and samples"/>
+          <figcaption class="figcap">
+            Viser visualization on the Lego scene: camera frustums, a small batch of rays, and their sampled 3D points.
+          </figcaption>
         </figure>
         <figure class="figure">
-          <img src="p5a/hybrid2.png" alt="Hybrid image 2"/>
-          <figcaption class="figcap">Hybrid #2 — <em>Prompt A (low-pass)</em> + <em>Prompt B (high-pass)</em>.</figcaption>
+          <img src="p4/Viser-11-15-2025_02_56_PM.png" alt="Viser plot of rays from a single corner region"/>
+          <figcaption class="figcap">
+            Debug view showing rays sampled only from the top-left region of one image, confirming UV ordering and
+            intrinsics are consistent.
+          </figcaption>
         </figure>
       </div>
 
       <div class="answer">
-        <div class="label">Perception note</div>
+        <div class="label">Checks for correctness</div>
+        <ul>
+          <li>I verify that integer UV indices match image pixels:
+            <span class="kbd">images[0, uvs[:,1], uvs[:,0]] == dataset.pixels</span> for a slice of the first image.</li>
+          <li>Viser visualizations confirm that rays from a single view lie inside its frustum and point towards the Lego.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ====================== 2.4 — NeRF Network ====================== -->
+    <section class="section" id="p24-nerf">
+      <h2>Part 2.4 — NeRF Network: Position &amp; View Direction</h2>
+      <p>
+        I extend the Part&nbsp;1 MLP to a full NeRF. The input is 3D world position and a 3D view direction; the output is
+        volume density <span class="kbd">σ</span> and RGB color <span class="kbd">c</span>.
+      </p>
+
+      <div class="callout">
+        <strong>NeRF MLP architecture</strong>
+        <ul>
+          <li><strong>Inputs:</strong>
+            <ul>
+              <li>3D position <span class="kbd">x_w</span>, encoded with sinusoidal PE (L=10).</li>
+              <li>3D view direction <span class="kbd">d_w</span>, normalized and encoded with PE (L=4).</li>
+            </ul>
+          </li>
+          <li><strong>Trunk:</strong> deep MLP over encoded positions (depth = 8, width = 256) with a skip connection
+            that concatenates the original position encoding back into the mid-layer.</li>
+          <li><strong>Heads:</strong>
+            <ul>
+              <li><strong>Density head:</strong> predicts <span class="kbd">σ</span> and passes it through a softplus
+                (non-negative) with small noise during training (NeRF trick).</li>
+              <li><strong>Color head:</strong> combines a learned feature vector with the encoded view direction to
+                predict RGB, then applies a Sigmoid to constrain colors to [0, 1].</li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+
+      <div class="figure">
+<pre class="codeblock"><code># Pseudocode: forward pass through NeRF MLP
+function nerf_forward(x_world, d_world):
+    x_enc = PE_xyz(x_world)       # high-frequency encoding of position
+    d_enc = PE_dir(normalize(d_world))
+
+    # Trunk over position
+    h = x_enc
+    for layer in trunk_layers:
+        h = ReLU(layer(h))
+        if layer_index in skip_layers:
+            h = concat(h, x_enc)
+
+    # Density and intermediate features
+    sigma_raw = sigma_head(h)     # add small noise during training
+    sigma = softplus(sigma_raw)   # σ ≥ 0
+    feat  = ReLU(feature_head(h))
+
+    # View-dependent color
+    col_input = concat(feat, d_enc)
+    h_col = ReLU(rgb_fc1(col_input))
+    rgb   = Sigmoid(rgb_fc2(h_col))
+
+    return sigma, rgb</code></pre>
+        <figcaption class="figcap">
+          NeRF MLP pseudocode: deeper trunk, skip connection, density and view-conditioned color heads.
+        </figcaption>
+      </div>
+    </section>
+
+    <!-- ====================== 2.5 — Volume Rendering & Lego Training ====================== -->
+    <section class="section" id="p25-volrend">
+      <h2>Part 2.5 — Volume Rendering &amp; NeRF Training on Lego</h2>
+      <p>
+        With the NeRF MLP and sampled points along each ray, I implement volume rendering and train a NeRF on the Lego
+        scene. The rendered ray colors are directly compared to the ground-truth pixel colors.
+      </p>
+
+      <div class="callout">
+        <strong>Volume rendering</strong>
+        <ol>
+          <li>Given <span class="kbd">σ_i</span> and <span class="kbd">c_i</span> along a ray and depths
+            <span class="kbd">t_i</span>, I compute per-interval distances
+            <span class="kbd">Δ_i = t_{i+1} - t_i</span>.</li>
+          <li>Opacity for each sample:
+            <span class="kbd">α_i = 1 − exp(−σ_i · Δ_i)</span>.</li>
+          <li>Transmittance up to sample <span class="kbd">i</span>:
+            <span class="kbd">T_i = ∏_{j&lt;i}(1 − α_j)</span> (computed with <span class="kbd">cumprod</span>).</li>
+          <li>Weights: <span class="kbd">w_i = α_i · T_i</span>.</li>
+          <li>Final color: <span class="kbd">C = Σ_i w_i c_i</span>, optional white-background compensation using
+            <span class="kbd">1 − Σ_i w_i</span>.</li>
+        </ol>
+      </div>
+
+      <div class="callout">
+        <strong>Lego training setup</strong>
+        <ul>
+          <li><strong>Data:</strong> <span class="kbd">lego_200x200.npz</span> (100 train, 10 val, 60 test cameras).</li>
+          <li><strong>Near/far:</strong> <span class="kbd">near = 2.0</span>, <span class="kbd">far = 6.0</span>.</li>
+          <li><strong>Sampling:</strong> 64 coarse samples + 128 fine samples per ray (hierarchical sampling).</li>
+          <li><strong>Batch size:</strong> 8,192 rays per gradient step.</li>
+          <li><strong>Optimizer:</strong> Adam, learning rate 5×10⁻⁴ with warmup and cosine decay.</li>
+          <li><strong>Loss:</strong> MSE on fine render plus 0.1× MSE on coarse render; white background.</li>
+          <li><strong>Metric:</strong> PSNR on 6 validation views.</li>
+        </ul>
+      </div>
+
+      <!-- Single composite image with all intermediate renders -->
+      <div class="figure figure-center" style="max-width: 980px;">
+        <img src="p4/lego_t.png" alt="Lego training progression strip"/>
+        <figcaption class="figcap">
+          Training progression on a Lego validation view. The strip shows NeRF predictions at increasing iterations
+          from left to right (e.g., early iterations on the left, later ones on the right), illustrating how geometry
+          and appearance gradually sharpen over time.
+        </figcaption>
+      </div>
+
+      <div class="figure figure-center" style="max-width: 640px;">
+        <img src="p4/lego_psnr.png" alt="Lego validation PSNR curve"/>
+        <figcaption class="figcap">
+          PSNR on 6 validation images. I reach &gt; 23&nbsp;dB as required, with PSNR continuing to improve with more
+          iterations.
+        </figcaption>
+      </div>
+
+      <div class="figure figure-center" style="max-width: 720px;">
+        <video controls loop muted style="width:100%;border-radius:12px;">
+          <source src="p4/lego_spherical.mp4" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+        <figcaption class="figcap">
+          Spherical rendering of Lego using the provided <span class="kbd">c2ws_test</span> camera path (novel views).
+        </figcaption>
+      </div>
+
+      <div class="answer">
+        <div class="label">Lego NeRF observations</div>
+        <ul>
+          <li>The network first captures coarse shapes and background, then refines sharp edges and thin structures.</li>
+          <li>View-dependent effects (e.g., specular highlights) become more accurate after the geometry warmup stage.</li>
+          <li>The final spherical video shows consistent geometry and appearance across unseen viewpoints.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ====================== 2.6 — NeRF on My Own Data ====================== -->
+    <section class="section" id="p26-mydata">
+      <h2>Part 2.6 — NeRF on My Own Captured Dataset</h2>
+      <p>
+        Finally, I apply the same NeRF pipeline to the dataset I built in Part&nbsp;0. The images are undistorted and
+        split into train / val / test with calibrated camera poses and intrinsics.
+      </p>
+
+      <div class="callout">
+        <strong>Setup for my data</strong>
+        <ul>
+          <li><strong>Dataset:</strong> <span class="kbd">my_data_down.npz</span> (downsampled resolution for faster training).</li>
+          <li><strong>Intrinsics:</strong> use stored <span class="kbd">fx, fy, cx, cy</span> to build the camera matrix
+            <span class="kbd">K</span>.</li>
+          <li><strong>Near/far:</strong> the object is much closer, so I use <span class="kbd">near ≈ 0.02</span>,
+            <span class="kbd">far ≈ 0.5</span> (tuned empirically).</li>
+          <li><strong>Samples per ray:</strong> start with 32 for debugging, then 64–128 for final training.</li>
+          <li><strong>Training:</strong> same NeRF architecture and loss; I log both training loss and validation PSNR.</li>
+        </ul>
+      </div>
+
+      <div class="figure figure-center" style="max-width: 640px;">
+        <img src="p4/data_loss.png" alt="Training loss vs iteration on my dataset"/>
+        <figcaption class="figcap">
+          Training loss vs iteration on my dataset. The curve decreases smoothly and then flattens as the NeRF converges.
+        </figcaption>
+      </div>
+
+
+      <!-- One composite image with intermediate renders -->
+      <div class="figure figure-center" style="max-width: 980px;">
+        <img src="p4/data_t.png" alt="Training progression strip on my dataset"/>
+        <figcaption class="figcap">
+          Training progression on my own dataset. The strip shows NeRF reconstructions at increasing iterations from
+          left to right, starting with blurry low-frequency estimates and ending with a sharp, high-quality rendering.
+        </figcaption>
+      </div>
+
+      <div class="callout">
+        <strong>Novel-view camera path</strong>
         <p>
-          Up close, the high-frequency concept tends to dominate; from farther away or at smaller display sizes,
-          the low-frequency concept becomes more apparent.
+          I generate a smooth camera path that circles the object while always looking at the origin. At each position
+          I render an image with my trained NeRF and stitch them into a gif.
         </p>
+        <p>
+          Pseudocode:
+        </p>
+<pre class="codeblock"><code># Pseudocode: 360° spin around the object
+start_pos = c2ws_train[0][:3, 3]       # reuse one training camera position
+for phi in linspace(360°, 0°, NUM_FRAMES):
+    base_c2w  = look_at_origin(start_pos)
+    spin_c2w  = rot_x(phi) @ base_c2w  # rotate camera around object
+    frame_img = render_image(nerf, spin_c2w, near, far)
+    append frame_img to gif_frames</code></pre>
+      </div>
+
+      <div class="figure figure-center" style="max-width: 720px;">
+        <img src="p4/data_spin.gif" alt="Novel-view gif of my NeRF object"/>
+        <figcaption class="figcap">
+          Novel-view gif of my reconstructed object: the camera smoothly circles around, revealing consistent geometry
+          and texture from all sides.
+        </figcaption>
+      </div>
+
+      <div class="answer">
+        <div class="label">Notes &amp; adjustments for my data</div>
+        <ul>
+          <li>Choosing correct <span class="kbd">near</span>/<span class="kbd">far</span> bounds was crucial; using Lego’s
+            [2, 6] range produced almost no density and stalled training.</li>
+          <li>Increasing the number of samples per ray helped capture fine details, at the cost of longer training time.</li>
+          <li>Downsampling images before NeRF training made the experiment practical while still producing a visually
+            convincing 3D reconstruction.</li>
+        </ul>
       </div>
     </section>
 
   </main>
 
   <footer class="container footer">
-    <div>Project 5A · CS180/280A</div>
+    <div>Project 4 · CS180/280A</div>
   </footer>
 </body>
 </html>
