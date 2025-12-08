@@ -193,3 +193,27 @@ pre.codeblock{
   margin-inline: auto;
 }
 
+/* =========================
+   Project 5A image sizing
+   ========================= */
+
+/* Make all figure images fill their card width */
+.p5a .figure img{
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Give galleries and grids a consistent visual tile size */
+.p5a .gallery .figure img,
+.p5a .grid .figure img{
+  height: 260px;         /* tweak: 220–320 depending on taste */
+  object-fit: contain;   /* don’t crop */
+}
+
+/* Center single images nicely too */
+.p5a .figure-center img{
+  width: 100%;
+  height: 320px;
+  object-fit: contain;
+}
