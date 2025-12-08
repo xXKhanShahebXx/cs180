@@ -55,53 +55,165 @@
       </div>
     </section>
 
-    <!-- ====================== PART 0 ====================== -->
-    <section class="section" id="p0-setup">
-      <h1 class="proj-title">Part 0 — Setup & Text-to-Image with DeepFloyd IF</h1>
-      <p>
-        I gained access to DeepFloyd IF via Hugging Face, generated prompt embeddings, and sampled Stage I
-        text-to-image outputs. I experimented with multiple prompts and adjusted
-        <span class="kbd">num_inference_steps</span> to observe the quality/speed trade-off.
-      </p>
+<!-- ====================== PART 0 ====================== -->
+<section class="section" id="p0-setup">
+  <h1 class="proj-title">Part 0 — Setup & Text-to-Image with DeepFloyd IF</h1>
+  <p>
+    I gained access to DeepFloyd IF via Hugging Face, generated prompt embeddings, and sampled Stage I/II
+    text-to-image outputs. I explored a small prompt set that I later reused for visual anagrams and
+    hybrid images.
+  </p>
 
-      <div class="callout">
-        <strong>Deliverables</strong>
-        <ul>
-          <li>3 custom prompts with images, captions, and at least two different <span class="kbd">num_inference_steps</span> values.</li>
-          <li>Report a fixed random seed used throughout Part A.</li>
-        </ul>
-      </div>
+  <div class="callout">
+    <strong>Prompt pool used for embeddings</strong>
+    <ul>
+      <li>a high quality picture</li>
+      <li>an oil painting of a snowy mountain village</li>
+      <li>a photo of the amalfi coast</li>
+      <li>a photo of a man</li>
+      <li>a photo of a hipster barista</li>
+      <li>a photo of a dog</li>
+      <li>an oil painting of people around a campfire</li>
+      <li>an oil painting of an old man</li>
+      <li>a lithograph of waterfalls</li>
+      <li>a lithograph of a skull</li>
+      <li>a man wearing a hat</li>
+      <li>a high quality photo</li>
+      <li>a rocket ship</li>
+      <li>a pencil</li>
+    </ul>
+  </div>
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5a/p0_prompt1.png" alt="DeepFloyd sample for prompt 1"/>
-          <figcaption class="figcap">
-            Prompt 1 — <em>replace with your caption</em>.
-          </figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/p0_prompt2.png" alt="DeepFloyd sample for prompt 2"/>
-          <figcaption class="figcap">
-            Prompt 2 — <em>replace with your caption</em>.
-          </figcaption>
-        </figure>
-      </div>
+  <div class="answer">
+    <div class="label">Reproducibility</div>
+    <ul>
+      <li><strong>Seed used for Part A:</strong> <span class="kbd">180</span></li>
+      <li>
+        I keep this seed fixed for all subsequent sections to make comparisons across
+        denoising schedules, CFG, and editing tasks consistent.
+      </li>
+    </ul>
+  </div>
 
-      <div class="figure figure-center">
-        <img src="p5a/p0_prompt3_steps_compare.png" alt="Comparison across different inference steps"/>
-        <figcaption class="figcap">
-          Prompt 3 with two different <span class="kbd">num_inference_steps</span> settings to compare fidelity vs speed.
-        </figcaption>
-      </div>
+  <!-- ====================== num_inference_steps = 20 ====================== -->
+  <h2>Baseline generations — num_inference_steps = 20</h2>
+  <p>
+    Below are three selected prompts at <span class="kbd">20</span> inference steps. For each prompt,
+    I show both DeepFloyd stages side-by-side.
+  </p>
 
-      <div class="answer">
-        <div class="label">Notes</div>
-        <ul>
-          <li>I keep a single fixed seed for reproducibility across all later parts.</li>
-          <li>Higher inference steps generally produce cleaner structure and better prompt alignment.</li>
-        </ul>
-      </div>
-    </section>
+  <!-- Set 1 -->
+  <div class="gallery">
+    <figure class="figure">
+      <img src="p5a/p0_steps20_set1_stage1.png" alt="Steps 20 set 1 stage 1"/>
+      <figcaption class="figcap">
+        <strong>Set 1 · Stage I</strong> (64×64) — <em>Selected Prompt 1</em>
+      </figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5a/p0_steps20_set1_stage2.png" alt="Steps 20 set 1 stage 2"/>
+      <figcaption class="figcap">
+        <strong>Set 1 · Stage II</strong> — upsampled refinement of Stage I
+      </figcaption>
+    </figure>
+  </div>
+
+  <!-- Set 2 -->
+  <div class="gallery">
+    <figure class="figure">
+      <img src="p5a/p0_steps20_set2_stage1.png" alt="Steps 20 set 2 stage 1"/>
+      <figcaption class="figcap">
+        <strong>Set 2 · Stage I</strong> (64×64) — <em>Selected Prompt 2</em>
+      </figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5a/p0_steps20_set2_stage2.png" alt="Steps 20 set 2 stage 2"/>
+      <figcaption class="figcap">
+        <strong>Set 2 · Stage II</strong> — upsampled refinement of Stage I
+      </figcaption>
+    </figure>
+  </div>
+
+  <!-- Set 3 -->
+  <div class="gallery">
+    <figure class="figure">
+      <img src="p5a/p0_steps20_set3_stage1.png" alt="Steps 20 set 3 stage 1"/>
+      <figcaption class="figcap">
+        <strong>Set 3 · Stage I</strong> (64×64) — <em>Selected Prompt 3</em>
+      </figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5a/p0_steps20_set3_stage2.png" alt="Steps 20 set 3 stage 2"/>
+      <figcaption class="figcap">
+        <strong>Set 3 · Stage II</strong> — upsampled refinement of Stage I
+      </figcaption>
+    </figure>
+  </div>
+
+  <!-- ====================== num_inference_steps = 50 ====================== -->
+  <h2>Baseline generations — num_inference_steps = 50</h2>
+  <p>
+    I repeat the same three prompts with <span class="kbd">50</span> inference steps to compare
+    prompt alignment, sharpness, and global coherence against the 20-step results.
+  </p>
+
+  <!-- Set 1 -->
+  <div class="gallery">
+    <figure class="figure">
+      <img src="p5a/p0_steps50_set1_stage1.png" alt="Steps 50 set 1 stage 1"/>
+      <figcaption class="figcap">
+        <strong>Set 1 · Stage I</strong> (64×64) — <em>Selected Prompt 1</em>
+      </figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5a/p0_steps50_set1_stage2.png" alt="Steps 50 set 1 stage 2"/>
+      <figcaption class="figcap">
+        <strong>Set 1 · Stage II</strong> — upsampled refinement of Stage I
+      </figcaption>
+    </figure>
+  </div>
+
+  <!-- Set 2 -->
+  <div class="gallery">
+    <figure class="figure">
+      <img src="p5a/p0_steps50_set2_stage1.png" alt="Steps 50 set 2 stage 1"/>
+      <figcaption class="figcap">
+        <strong>Set 2 · Stage I</strong> (64×64) — <em>Selected Prompt 2</em>
+      </figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5a/p0_steps50_set2_stage2.png" alt="Steps 50 set 2 stage 2"/>
+      <figcaption class="figcap">
+        <strong>Set 2 · Stage II</strong> — upsampled refinement of Stage I
+      </figcaption>
+    </figure>
+  </div>
+
+  <!-- Set 3 -->
+  <div class="gallery">
+    <figure class="figure">
+      <img src="p5a/p0_steps50_set3_stage1.png" alt="Steps 50 set 3 stage 1"/>
+      <figcaption class="figcap">
+        <strong>Set 3 · Stage I</strong> (64×64) — <em>Selected Prompt 3</em>
+      </figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5a/p0_steps50_set3_stage2.png" alt="Steps 50 set 3 stage 2"/>
+      <figcaption class="figcap">
+        <strong>Set 3 · Stage II</strong> — upsampled refinement of Stage I
+      </figcaption>
+    </figure>
+  </div>
+
+  <div class="answer">
+    <div class="label">Quick reflection (placeholder)</div>
+    <ul>
+      <li><strong>20 steps:</strong> <em>brief note on speed/quality trade-off</em>.</li>
+      <li><strong>50 steps:</strong> <em>brief note on improvements in structure, texture, or prompt fidelity</em>.</li>
+      <li><strong>Stage I vs II:</strong> <em>comment on how upsampling refines details and reduces artifacts</em>.</li>
+    </ul>
+  </div>
+</section>
 
     <!-- ====================== PART 1 ====================== -->
     <section class="section" id="p1-overview">
