@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#0f1226"/>
   <link rel="stylesheet" href="assets/style.css?v=2"/>
 </head>
-<body>
+<body class="p5a">
   <!-- Top breadcrumb -->
   <nav class="topbar">
     <div class="container" style="padding:10px 24px">
@@ -721,7 +721,7 @@ media.show_images(
 
 <!-- ====================== 1.7 Image-to-image Translation ====================== -->
 <section class="section" id="p17-sdedit">
-  <h2>Part 1.7 — Image-to-image Translation (SDEdit)</h2>
+  <h2>Part 1.7 — Image-to-image Translation</h2>
   <p>
     Using my forward process and the CFG denoising loop, I apply the SDEdit-style procedure:
     I add noise to an input image at a chosen starting index and then iteratively denoise it with the
@@ -981,7 +981,7 @@ media.show_images(
 
 <!-- ====================== 1.7.2 Inpainting ====================== -->
 <section class="section" id="p172-inpainting">
-  <h2>Part 1.7.2 — Inpainting (RePaint-style)</h2>
+  <h2>Part 1.7.2 — Inpainting</h2>
   <p>
     I implement inpainting by modifying the CFG denoising loop. At each step, after predicting the next
     less-noisy image, I overwrite pixels <em>outside</em> the edit region with the appropriately noised
@@ -1108,7 +1108,7 @@ media.show_images(
 
 <!-- ====================== 1.7.3 Text-Conditional Image-to-image Translation ====================== -->
 <section class="section" id="p173-text-conditional">
-  <h2>Part 1.7.3 — Text-Conditional Image-to-image Translation (CFG)</h2>
+  <h2>Part 1.7.3 — Text-Conditional Image-to-image Translation</h2>
   <p>
     I repeat the SDEdit-style pipeline, but now condition the denoising with my own text prompts.
     As I increase the noise level (lower <span class="kbd">i_start</span>), the model has more freedom
