@@ -254,15 +254,8 @@
       im_noisy : torch tensor of size (1, 3, 64, 64) representing the noisy image at timestep t
     """
     with torch.no_grad():
-        # Get the cumulative alpha for this timestep
-        # We move it to the same device as the image to avoid device mismatch errors
         alpha_t = alphas_cumprod[t].to(im.device)
-
-        # Generate random noise epsilon ~ N(0, 1) with the same shape as the image
         epsilon = torch.randn_like(im)
-
-        # Apply the forward diffusion equation:
-        # x_t = sqrt(alpha_t) * x_0 + sqrt(1 - alpha_t) * epsilon
         im_noisy = torch.sqrt(alpha_t) * im + torch.sqrt(1 - alpha_t) * epsilon
 
     return im_noisy</code></pre>
@@ -291,36 +284,57 @@
       </div>
     </section>
 
-    <!-- ====================== 1.2 Classical Denoising ====================== -->
-    <section class="section" id="p12-gaussian">
-      <h2>Part 1.2 — Classical Denoising with Gaussian Blur</h2>
-      <p>
-        I attempt to denoise the same noisy Campanile images using Gaussian blur. As expected, this baseline
-        struggles to recover structure at high noise levels compared to a learned diffusion prior.
-      </p>
+<!-- ====================== 1.2 Classical Denoising ====================== -->
+<section class="section" id="p12-gaussian">
+  <h2>Part 1.2 — Classical Denoising with Gaussian Blur</h2>
+  <p>
+    I denoise the noisy Campanile images from Part 1.1 using Gaussian blur. As expected, this classical baseline
+    struggles to recover fine structure at higher noise levels compared to learned diffusion denoisers.
+  </p>
 
-      <div class="callout">
-        <strong>Deliverables</strong>
-        <ul>
-          <li>Side-by-side noisy vs Gaussian-denoised results for <span class="kbd">t = 250, 500, 750</span>.</li>
-        </ul>
-      </div>
+  <div class="callout">
+    <strong>Deliverables</strong>
+    <ul>
+      <li>For <span class="kbd">t = 250, 500, 750</span>, show the noisy image and my best Gaussian-denoised result side by side.</li>
+    </ul>
+  </div>
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5a/gauss_t250_pair.png" alt="Noisy and Gaussian blurred at t=250"/>
-          <figcaption class="figcap">Noisy vs Gaussian blur at <span class="kbd">t=250</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/gauss_t500_pair.png" alt="Noisy and Gaussian blurred at t=500"/>
-          <figcaption class="figcap">Noisy vs Gaussian blur at <span class="kbd">t=500</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/gauss_t750_pair.png" alt="Noisy and Gaussian blurred at t=750"/>
-          <figcaption class="figcap">Noisy vs Gaussian blur at <span class="kbd">t=750</span>.</figcaption>
-        </figure>
-      </div>
-    </section>
+  <h3>t = 250</h3>
+  <div class="gallery">
+    <figure class="figure">
+      <img src="p5/campanile_t250.png" alt="Noisy Campanile at t=250"/>
+      <figcaption class="figcap">Noisy Campanile at <span class="kbd">t=250</span>.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/gauss_t250.png" alt="Gaussian blur denoising at t=250"/>
+      <figcaption class="figcap">Gaussian blur denoising at <span class="kbd">t=250</span>.</figcaption>
+    </figure>
+  </div>
+
+  <h3>t = 500</h3>
+  <div class="gallery">
+    <figure class="figure">
+      <img src="p5/campanile_t500.png" alt="Noisy Campanile at t=500"/>
+      <figcaption class="figcap">Noisy Campanile at <span class="kbd">t=500</span>.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/gauss_t500.png" alt="Gaussian blur denoising at t=500"/>
+      <figcaption class="figcap">Gaussian blur denoising at <span class="kbd">t=500</span>.</figcaption>
+    </figure>
+  </div>
+
+  <h3>t = 750</h3>
+  <div class="gallery">
+    <figure class="figure">
+      <img src="p5/campanile_t750.png" alt="Noisy Campanile at t=750"/>
+      <figcaption class="figcap">Noisy Campanile at <span class="kbd">t=750</span>.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/gauss_t750.png" alt="Gaussian blur denoising at t=750"/>
+      <figcaption class="figcap">Gaussian blur denoising at <span class="kbd">t=750</span>.</figcaption>
+    </figure>
+  </div>
+</section>
 
     <!-- ====================== 1.3 One-Step Denoising ====================== -->
     <section class="section" id="p13-onestep">
