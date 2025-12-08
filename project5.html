@@ -1679,28 +1679,48 @@ media.show_images(
         </figure>
       </div>
 
-      <div class="answer">
-        <div class="label">Brief reflection</div>
-        <p>
-Observations:
+<div class="answer">
+  <div class="label">Brief reflection</div>
 
-The "Ghostly" Average: The generated images do not look like specific, sharp digits (like a clear "7" or "2"). Instead, they look like a blurry, static blob—a "ghost" digit. It resembles a superposition of all the digits in the MNIST dataset (often looking like a mix of 0, 1, and 8).
+  <p>
+    When I trained the one-step UNet to map <em>pure Gaussian noise</em> to clean MNIST digits using an
+    <span class="kbd">L2 / MSE</span> objective, the model quickly converged to a highly consistent but
+    uninformative output.
+  </p>
 
-Lack of Diversity: Even though you fed the network different random noise vectors (the 8 distinct inputs), the outputs are virtually identical. The network is ignoring the specific variations in the input noise.
+  <ul>
+    <li>
+      <strong>The “ghostly” average:</strong>
+      The generated images do not resemble sharp, specific digits (e.g., a clear “7” or “2”).
+      Instead, they look like a blurry, static “ghost” digit, resembling a soft superposition of
+      common MNIST strokes (often reminiscent of 0/1/8-like structure).
+    </li>
+    <li>
+      <strong>Lack of diversity:</strong>
+      Even with multiple distinct random noise inputs, the outputs are nearly identical. This suggests
+      the network is largely ignoring the input variations.
+    </li>
+    <li>
+      <strong>Loss plateau:</strong>
+      The loss drops quickly early in training and then stabilizes at a non-zero value, unlike the
+      in-distribution denoising task where the model can keep improving toward sharper reconstructions.
+    </li>
+  </ul>
 
-Loss Plateau: The loss curve drops very quickly and then flattens out completely. It doesn't converge to near-zero (like it did in the denoising task), but rather gets stuck at a specific non-zero value.
+  <p>
+    This behavior is expected from the combination of <span class="kbd">MSE</span> loss and the absence of any
+    meaningful correlation between input noise and target digit. Since a random noise vector contains
+    no information about which digit it should map to, the optimal prediction under MSE becomes the
+    conditional expectation of the target distribution. With no informative conditioning signal, this
+    effectively collapses to the <em>global average</em> of the training images.
+  </p>
 
-Explanation:
+  <p>
+    In other words, the model learns to output the dataset “centroid” — the average MNIST digit — which
+    explains both the ghostly appearance and the collapse in diversity.
+  </p>
+</div>
 
-This behavior occurs because of the specific combination of MSE Loss (L2) and the lack of correlation between input and output.
-
-The Problem Setup: You are asking the network to map random noise  ϵ  (which contains zero information about the target) to a specific digit  x . There is no way for the network to "know" that this specific random noise vector should correspond to a "7" and that one to a "3".
-
-The Mathematical Consequence: When training with L2 loss (Mean Squared Error), the model attempts to minimize the error across the entire dataset. Mathematically, the optimal prediction that minimizes MSE is the conditional expectation (the mean) of the target distribution. Since the input noise gives no clue about the target, the conditional expectation becomes just the global average of all training images:  E[x] .
-
-The Result: The "ghost" image is literally the average pixel value of the entire MNIST training set. It is the "centroid" of the dataset.
-        </p>
-      </div>
     </section>
 
     <!-- ====================== B.2 Flow Matching ====================== -->
@@ -1723,23 +1743,49 @@ The Result: The "ghost" image is literally the average pixel value of the entire
         before embedding.
       </p>
 
-      <div class="callout">
-        <strong>Deliverable</strong>
-        <ul>
-          <li>Correct time-conditioned UNet implementation with FCBlock modulation.</li>
-        </ul>
-      </div>
+<div class="answer">
+  <div class="label">Implementation note (B 2.1 — Time conditioning)</div>
+  <p>
+    I added <strong>time conditioning</strong> to the UNet by introducing two FCBlocks that embed the scalar
+    timestep <span class="kbd">t</span> and modulate intermediate feature maps at the specific points
+    highlighted in the spec.
+  </p>
+  <ul>
+    <li>
+      <strong>Normalize time:</strong> I normalized the sampled timestep to
+      <span class="kbd">t_norm = t / 999</span> so that the conditioning signal lies in
+      <span class="kbd">[0, 1]</span>.
+    </li>
+    <li>
+      <strong>Shape handling:</strong> I reshaped the time tensor to
+      <span class="kbd">[B, 1]</span> before passing it into the FCBlocks.
+    </li>
+    <li>
+      <strong>Where conditioning enters:</strong> Following the diagram/pseudocode, the first time embedding
+      modulates the <span class="kbd">unflatten</span> features, and the second time embedding modulates
+      the <span class="kbd">up1</span> features.
+    </li>
+    <li>
+      <strong>Broadcasting:</strong> The FCBlock outputs are broadcast across spatial dimensions to match the
+      feature map shapes during multiplication.
+    </li>
+  </ul>
 
-      <figure class="figure">
-        <pre class="codeblock"><code>// TODO (optional): paste your FCBlock + time-conditioned UNet code here
-// Key idea:
-// - t normalized to [0, 1]
-// - unflatten = unflatten * t1
-// - up1 = up1 * t2</code></pre>
-        <figcaption class="figcap">
-          *(Optional)* Time-conditioning injection points used for flow matching.
-        </figcaption>
-      </figure>
+  <pre class="codeblock"><code># t is an integer timestep sampled in [0, 999]
+t_norm = (t / 999.0).view(B, 1)
+
+t1 = fc1_t(t_norm)
+t2 = fc2_t(t_norm)
+
+# Replace with time-modulated versions
+unflatten = unflatten * t1
+up1 = up1 * t2</code></pre>
+
+  <p>
+    This modification allows the UNet to learn a <em>time-dependent</em> vector field for flow matching,
+    instead of a single static denoising behavior.
+  </p>
+</div>
     </section>
 
     <!-- ====================== B.2.2 Training ====================== -->
@@ -1755,7 +1801,7 @@ The Result: The "ghost" image is literally the average pixel value of the entire
       </p>
 
       <div class="callout">
-        <strong>Training setup (recommended)</strong>
+        <strong>Training setup</strong>
         <ul>
           <li>Model: time-conditioned UNet, <span class="kbd">D = 64</span></li>
           <li>Batch size: <span class="kbd">64</span></li>
@@ -1765,7 +1811,7 @@ The Result: The "ghost" image is literally the average pixel value of the entire
       </div>
 
       <figure class="figure">
-        <img src="p5/b22_timecond_loss_curve.png" alt="Time-conditioned UNet loss curve"/>
+        <img src="p5/timecond_loss_curve.png" alt="Time-conditioned UNet loss curve"/>
         <figcaption class="figcap">
           Training loss curve for the time-conditioned flow matching UNet.
         </figcaption>
@@ -1789,25 +1835,25 @@ The Result: The "ghost" image is literally the average pixel value of the entire
 
       <div class="gallery">
         <figure class="figure">
-          <img src="p5/b23_samples_epoch1.png" alt="Flow matching samples after epoch 1"/>
+          <img src="p5/samples_epoch1.png" alt="Flow matching samples after epoch 1"/>
           <figcaption class="figcap">Epoch <span class="kbd">1</span>.</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p5/b23_samples_epoch5.png" alt="Flow matching samples after epoch 5"/>
+          <img src="p5/samples_epoch5.png" alt="Flow matching samples after epoch 5"/>
           <figcaption class="figcap">Epoch <span class="kbd">5</span>.</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p5/b23_samples_epoch10.png" alt="Flow matching samples after epoch 10"/>
+          <img src="p5/samples_epoch10.png" alt="Flow matching samples after epoch 10"/>
           <figcaption class="figcap">Epoch <span class="kbd">10</span>.</figcaption>
         </figure>
       </div>
     </section>
 
-    <!-- ====================== B.2.4+ Class Conditioning (Optional) ====================== -->
+    <!-- ====================== B.2.4+ Class Conditioning ====================== -->
     <section class="section" id="pb24-class">
-      <h2>Part B.2.4 — Adding Class Conditioning (Optional)</h2>
+      <h2>Part B.2.4 — Adding Class Conditioning</h2>
       <p>
-        To improve sample quality and control, I optionally condition the UNet on the digit class
+        To improve sample quality and control, I condition the UNet on the digit class
         using one-hot vectors. I apply classifier-free dropout by zeroing the class conditioning
         10% of the time.
       </p>
@@ -1822,48 +1868,132 @@ The Result: The "ghost" image is literally the average pixel value of the entire
       </div>
 
       <figure class="figure">
-        <img src="p5/b24_classcond_loss_curve.png" alt="Class-conditioned UNet loss curve"/>
+        <img src="p5/classcond_loss_curve.png" alt="Class-conditioned UNet loss curve"/>
         <figcaption class="figcap">
           Training loss curve for class-conditioned flow matching UNet.
         </figcaption>
       </figure>
 
-      <h3>Class-conditioned samples (with CFG)</h3>
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/b26_class_samples_epoch1.png" alt="Class-conditioned samples epoch 1"/>
-          <figcaption class="figcap">Epoch <span class="kbd">1</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/b26_class_samples_epoch5.png" alt="Class-conditioned samples epoch 5"/>
-          <figcaption class="figcap">Epoch <span class="kbd">5</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/b26_class_samples_epoch10.png" alt="Class-conditioned samples epoch 10"/>
-          <figcaption class="figcap">Epoch <span class="kbd">10</span>.</figcaption>
-        </figure>
-      </div>
+  <!-- ====================== WITH SCHEDULER ====================== -->
+  <h2>With exponential learning rate scheduler</h2>
+  <p>
+    I follow the recommended setup for class-conditioned flow matching with an exponential LR decay.
+    The scheduler helps stabilize later-stage refinement while keeping early training fast.
+  </p>
 
-      <h3>Scheduler ablation</h3>
-      <p>
-        I remove the exponential LR scheduler and adjust my training setup to maintain comparable performance.
-      </p>
+  <h3>Training loss (with scheduler)</h3>
+  <div class="gallery">
+    <figure class="figure">
+      <img src="p5/loss_with_scheduler.png" alt="Class-conditioned training loss with scheduler"/>
+      <figcaption class="figcap">
+        Training loss curve for the class-conditioned, time-conditioned UNet
+        using an exponential LR scheduler.
+      </figcaption>
+    </figure>
+  </div>
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/b26_no_scheduler_samples.png" alt="Samples without LR scheduler"/>
-          <figcaption class="figcap">Samples after training <em>without</em> the LR scheduler.</figcaption>
-        </figure>
-      </div>
+  <h3>Sampling results (with scheduler)</h3>
+  <p class="proj-sub" style="margin-top:-6px;">
+    Each panel contains 4 samples per digit (0–9) using CFG with <span class="kbd">scale = 5.0</span>.
+  </p>
+  <div class="gallery">
+    <figure class="figure">
+      <img src="p5/samples_with_scheduler_ep1.png" alt="Class-conditioned samples with scheduler epoch 1"/>
+      <figcaption class="figcap">Epoch <span class="kbd">1</span> (with scheduler).</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/samples_with_scheduler_ep5.png" alt="Class-conditioned samples with scheduler epoch 5"/>
+      <figcaption class="figcap">Epoch <span class="kbd">5</span> (with scheduler).</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/samples_with_scheduler_ep10.png" alt="Class-conditioned samples with scheduler epoch 10"/>
+      <figcaption class="figcap">Epoch <span class="kbd">10</span> (with scheduler).</figcaption>
+    </figure>
+  </div>
 
-      <div class="answer">
-        <div class="label">What I changed to compensate</div>
-        <p>
-          <!-- TODO: Replace with your actual compensation strategy. -->
-          I compensated for removing the scheduler by tuning the initial learning rate and/or extending
-          training slightly, while monitoring stability and convergence of the flow loss.
-        </p>
-      </div>
+  <!-- ====================== WITHOUT SCHEDULER ====================== -->
+  <h2>Without scheduler (constant learning rate)</h2>
+  <p>
+    I remove the exponential learning rate scheduler and train with a constant learning rate,
+    then compare convergence and sample quality to the scheduled setup.
+  </p>
+
+  <div class="answer">
+    <div class="label">Compensation for the loss of the scheduler</div>
+    <ul>
+      <li><strong>Strategy:</strong> I used a robust constant learning rate of <span class="kbd">1e-3</span>.</li>
+      <li>
+        <strong>Why this works:</strong> A scheduler typically starts high (e.g., <span class="kbd">1e-2</span>)
+        to explore quickly and then decays low (e.g., <span class="kbd">1e-4</span>) to fine-tune.
+        Without decay, <span class="kbd">1e-2</span> can cause late-stage oscillation,
+        while <span class="kbd">1e-4</span> slows early learning too much.
+      </li>
+      <li>
+        <strong>The “Goldilocks” value:</strong> <span class="kbd">1e-3</span> is a reliable Adam default—
+        large enough for fast early structure learning and small enough for stable later refinement.
+      </li>
+    </ul>
+  </div>
+
+  <h3>Training loss (no scheduler)</h3>
+  <div class="gallery">
+    <figure class="figure">
+      <img src="p5/loss_no_scheduler.png" alt="Class-conditioned training loss without scheduler"/>
+      <figcaption class="figcap">
+        Training loss curve for the class-conditioned, time-conditioned UNet
+        using a constant learning rate (no scheduler).
+      </figcaption>
+    </figure>
+  </div>
+
+  <h3>Sampling results (no scheduler)</h3>
+  <p class="proj-sub" style="margin-top:-6px;">
+    Each panel contains 4 samples per digit (0–9) using CFG with <span class="kbd">scale = 5.0</span>.
+  </p>
+  <div class="gallery">
+    <figure class="figure">
+      <img src="p5/samples_no_scheduler_ep1.png" alt="Class-conditioned samples without scheduler epoch 1"/>
+      <figcaption class="figcap">Epoch <span class="kbd">1</span> (no scheduler).</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/samples_no_scheduler_ep5.png" alt="Class-conditioned samples without scheduler epoch 5"/>
+      <figcaption class="figcap">Epoch <span class="kbd">5</span> (no scheduler).</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/samples_no_scheduler_ep10.png" alt="Class-conditioned samples without scheduler epoch 10"/>
+      <figcaption class="figcap">Epoch <span class="kbd">10</span> (no scheduler).</figcaption>
+    </figure>
+  </div>
+
+  <div class="answer">
+    <div class="label">Analysis of visualizations</div>
+    <ul>
+      <li>
+        <strong>Epoch 1:</strong> Clear early convergence. The model already captures the general strokes of each digit,
+        with mild fuzziness in rounded shapes (e.g., <span class="kbd">0</span>, <span class="kbd">8</span>).
+      </li>
+      <li>
+        <strong>Epoch 5:</strong> Digits sharpen significantly. CFG encourages alignment to class prototypes,
+        reducing early-stage artifacts.
+      </li>
+      <li>
+        <strong>Epoch 10:</strong> Samples look highly realistic with preserved intra-class variation
+        (e.g., multiple plausible writing styles).
+      </li>
+    </ul>
+  </div>
+
+  <div class="answer">
+    <div class="label">Loss curve analysis</div>
+    <ul>
+      <li><strong>Rapid descent:</strong> A steep early drop indicates the model quickly learns the flow field.</li>
+      <li>
+        <strong>Stable floor:</strong> The curve flattens without large spikes
+        (suggesting the constant LR is not too high) and without overly slow drift
+        (suggesting it is not too low).
+      </li>
+    </ul>
+  </div>
     </section>
 
 
