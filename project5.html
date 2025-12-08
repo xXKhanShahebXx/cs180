@@ -243,6 +243,34 @@
         </ul>
       </div>
 
+      <div class="figure">
+<pre class="codeblock"><code>def forward(im, t):
+    """
+    Args:
+      im : torch tensor of size (1, 3, 64, 64) representing the clean image
+      t : integer timestep
+
+    Returns:
+      im_noisy : torch tensor of size (1, 3, 64, 64) representing the noisy image at timestep t
+    """
+    with torch.no_grad():
+        # Get the cumulative alpha for this timestep
+        # We move it to the same device as the image to avoid device mismatch errors
+        alpha_t = alphas_cumprod[t].to(im.device)
+
+        # Generate random noise epsilon ~ N(0, 1) with the same shape as the image
+        epsilon = torch.randn_like(im)
+
+        # Apply the forward diffusion equation:
+        # x_t = sqrt(alpha_t) * x_0 + sqrt(1 - alpha_t) * epsilon
+        im_noisy = torch.sqrt(alpha_t) * im + torch.sqrt(1 - alpha_t) * epsilon
+
+    return im_noisy</code></pre>
+  <figcaption class="figcap">
+    Forward diffusion implementation used to generate noisy versions of the 64×64 Campanile at specific timesteps.
+  </figcaption>
+</div>
+
       <div class="gallery">
         <figure class="figure">
           <img src="p5/campanile_clean.png" alt="Original Campanile"/>
