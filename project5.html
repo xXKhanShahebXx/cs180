@@ -1535,13 +1535,6 @@ media.show_images(
         to <span class="kbd">D = 128</span> for the single-step denoiser.
       </p>
 
-      <div class="callout">
-        <strong>Deliverable</strong>
-        <ul>
-          <li>Correct UNet implementation matching the architecture spec.</li>
-        </ul>
-      </div>
-
       <div class="answer">
         <div class="label">Implementation notes</div>
         <ul>
@@ -1550,56 +1543,32 @@ media.show_images(
           <li>All tensor shapes verified across the 28×28 → 7×7 → 28×28 path.</li>
         </ul>
       </div>
-
-      <!-- Optional placeholder if you want to show a code excerpt later -->
-      <figure class="figure">
-        <pre class="codeblock"><code>// TODO (optional): paste your UNet class / block definitions here</code></pre>
-        <figcaption class="figcap">
-          *(Optional)* UNet implementation snippet for the single-step denoiser.
-        </figcaption>
-      </figure>
     </section>
 
-    <!-- ====================== B.1.2 Noising Process ====================== -->
-    <section class="section" id="pb12-noise">
-      <h2>Part B.1.2 — Generating Noisy Training Pairs</h2>
-      <p>
-        To create training pairs <span class="kbd">(x_t, x)</span>, I noise clean MNIST
-        images using the provided process with a randomly sampled
-        <span class="kbd">σ</span> each iteration. I visualize how increasing noise
-        levels progressively destroy fine digit structure.
-      </p>
+  <!-- ====================== B 1.2 Noising Process Visualization ====================== -->
+<section class="section" id="pb12-noising">
+  <h2>Part B 1.2 — Visualizing the Noising Process</h2>
+  <p>
+    To understand the corruption process used for training the one-step denoiser, I visualize
+    the effect of increasing noise level <span class="kbd">σ</span> on the same normalized MNIST digit.
+    As <span class="kbd">σ</span> increases, the digit becomes progressively less recognizable.
+  </p>
 
-      <div class="callout">
-        <strong>Deliverable</strong>
-        <ul>
-          <li>Visualization of the noising process by varying <span class="kbd">σ</span>.</li>
-        </ul>
-      </div>
+  <div class="callout">
+    <strong>Deliverable</strong>
+    <ul>
+      <li>A visualization of the noising process using <span class="kbd">σ</span>.</li>
+    </ul>
+  </div>
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/b12_clean.png" alt="MNIST clean example"/>
-          <figcaption class="figcap">Clean <span class="kbd">x</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/b12_sigma_025.png" alt="MNIST noised sigma 0.25"/>
-          <figcaption class="figcap"><span class="kbd">σ = 0.25</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/b12_sigma_050.png" alt="MNIST noised sigma 0.50"/>
-          <figcaption class="figcap"><span class="kbd">σ = 0.50</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/b12_sigma_075.png" alt="MNIST noised sigma 0.75"/>
-          <figcaption class="figcap"><span class="kbd">σ = 0.75</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/b12_sigma_100.png" alt="MNIST noised sigma 1.00"/>
-          <figcaption class="figcap"><span class="kbd">σ = 1.00</span>.</figcaption>
-        </figure>
-      </div>
-    </section>
+  <figure class="figure figure-center">
+    <img src="p5/noising_vis.png" alt="MNIST noising process across multiple sigma values"/>
+    <figcaption class="figcap">
+      Single-panel visualization of the noising process for increasing
+      <span class="kbd">σ</span>, shown on the same example digit.
+    </figcaption>
+  </figure>
+</section>
 
     <!-- ====================== B.1.2.1 Training ====================== -->
     <section class="section" id="pb121-train">
@@ -1623,7 +1592,7 @@ media.show_images(
 
       <h3>Training loss</h3>
       <figure class="figure">
-        <img src="p5/b121_loss_curve.png" alt="Part B 1.2.1 training loss curve"/>
+        <img src="p5/loss_curve.png" alt="Part B 1.2.1 training loss curve"/>
         <figcaption class="figcap">
           Training loss curve for the one-step denoising UNet.
         </figcaption>
@@ -1632,11 +1601,11 @@ media.show_images(
       <h3>Test results with σ = 0.5</h3>
       <div class="gallery">
         <figure class="figure">
-          <img src="p5/b121_epoch1_sigma05.png" alt="One-step denoiser results after epoch 1"/>
+          <img src="p5/epoch1_sigma05.png" alt="One-step denoiser results after epoch 1"/>
           <figcaption class="figcap">After epoch <span class="kbd">1</span>.</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p5/b121_epoch5_sigma05.png" alt="One-step denoiser results after epoch 5"/>
+          <img src="p5/epoch5_sigma05.png" alt="One-step denoiser results after epoch 5"/>
           <figcaption class="figcap">After epoch <span class="kbd">5</span>.</figcaption>
         </figure>
       </div>
