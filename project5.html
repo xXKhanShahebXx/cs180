@@ -1169,33 +1169,33 @@ media.show_images(
   </p>
 
   <div class="figure figure-center" style="max-width:520px;">
-    <img src="p5/personal1_inpaint_original.png" alt="Original personal image 1 for text-conditional editing"/>
+    <img src="p5/personal1_inpaint_original.jpg" alt="Original personal image 1 for text-conditional editing"/>
     <figcaption class="figcap">Original personal image 1 (input).</figcaption>
   </div>
 
   <div class="gallery">
     <figure class="figure">
-      <img src="p5/personal1_text_1.png" alt="Personal image 1 text-conditional edit i_start=1"/>
+      <img src="p5/personal1_text_1.jpg" alt="Personal image 1 text-conditional edit i_start=1"/>
       <figcaption class="figcap"><span class="kbd">i_start=1</span>.</figcaption>
     </figure>
     <figure class="figure">
-      <img src="p5/personal1_text_3.png" alt="Personal image 1 text-conditional edit i_start=3"/>
+      <img src="p5/personal1_text_3.jpg" alt="Personal image 1 text-conditional edit i_start=3"/>
       <figcaption class="figcap"><span class="kbd">i_start=3</span>.</figcaption>
     </figure>
     <figure class="figure">
-      <img src="p5/personal1_text_5.png" alt="Personal image 1 text-conditional edit i_start=5"/>
+      <img src="p5/personal1_text_5.jpg" alt="Personal image 1 text-conditional edit i_start=5"/>
       <figcaption class="figcap"><span class="kbd">i_start=5</span>.</figcaption>
     </figure>
     <figure class="figure">
-      <img src="p5/personal1_text_7.png" alt="Personal image 1 text-conditional edit i_start=7"/>
+      <img src="p5/personal1_text_7.jpg" alt="Personal image 1 text-conditional edit i_start=7"/>
       <figcaption class="figcap"><span class="kbd">i_start=7</span>.</figcaption>
     </figure>
     <figure class="figure">
-      <img src="p5/personal1_text_10.png" alt="Personal image 1 text-conditional edit i_start=10"/>
+      <img src="p5/personal1_text_10.jpg" alt="Personal image 1 text-conditional edit i_start=10"/>
       <figcaption class="figcap"><span class="kbd">i_start=10</span>.</figcaption>
     </figure>
     <figure class="figure">
-      <img src="p5/personal1_text_20.png" alt="Personal image 1 text-conditional edit i_start=20"/>
+      <img src="p5/personal1_text_20.jpg" alt="Personal image 1 text-conditional edit i_start=20"/>
       <figcaption class="figcap"><span class="kbd">i_start=20</span>.</figcaption>
     </figure>
   </div>
@@ -1207,7 +1207,7 @@ media.show_images(
   </p>
 
   <div class="figure figure-center" style="max-width:520px;">
-    <img src="p5/personal2_inpaint_original.png" alt="Original personal image 2 for text-conditional editing"/>
+    <img src="p5/personal2_inpaint_original.jpg" alt="Original personal image 2 for text-conditional editing"/>
     <figcaption class="figcap">Original personal image 2 (input).</figcaption>
   </div>
 
@@ -1241,45 +1241,138 @@ media.show_images(
 
 
 
-    <!-- ====================== 1.8 Visual Anagrams ====================== -->
-    <section class="section" id="p18-anagrams">
-      <h2>Part 1.8 — Visual Anagrams (Flip Illusions)</h2>
-      <p>
-        I implement visual anagrams by denoising an image with two prompts simultaneously: one on the original image
-        and one on a vertically flipped copy. Averaging the aligned noise estimates produces a single image that
-        changes interpretation when flipped upside down.
-      </p>
+<!-- ====================== 1.8 Visual Anagrams (Flip Illusions) ====================== -->
+<section class="section" id="p18-visual-anagrams">
+  <h2>Part 1.8 — Visual Anagrams</h2>
+  <p>
+    In this part I implement a flip-based visual anagram pipeline using DeepFloyd Stage I.
+    The idea is to denoise an image with one prompt in the upright orientation, denoise the
+    vertically flipped image with a second prompt, flip the second noise estimate back, and
+    average the two noise predictions before taking the next DDPM step. This creates an image
+    that can plausibly satisfy two different interpretations when viewed upright vs. upside down.
+  </p>
 
-      <div class="callout">
-        <strong>Deliverables</strong>
-        <ul>
-          <li>Implemented <span class="kbd">visual_anagrams</span> function.</li>
-          <li>Two flip illusions with paired prompts.</li>
-        </ul>
-      </div>
+  <div class="callout">
+    <strong>Deliverables</strong>
+    <ul>
+      <li>Correctly implemented flip-illusion function.</li>
+      <li>Two illusions that change appearance when flipped upside down.</li>
+    </ul>
+  </div>
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5a/anagram1_upright.png" alt="Visual anagram 1 upright"/>
-          <figcaption class="figcap">Illusion #1 (upright) — <em>Prompt A</em>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/anagram1_flipped.png" alt="Visual anagram 1 flipped"/>
-          <figcaption class="figcap">Illusion #1 (flipped) — <em>Prompt B</em>.</figcaption>
-        </figure>
-      </div>
+  <div class="figure">
+<pre class="codeblock"><code>def make_flip_illusion(image, i_start, prompt_embeds_1, prompt_embeds_2, uncond_prompt_embeds, timesteps, scale=7, display=True):
+    image = image.to(device).half()
+    prompt_embeds_1 = prompt_embeds_1.to(device).half()
+    prompt_embeds_2 = prompt_embeds_2.to(device).half()
+    uncond_prompt_embeds = uncond_prompt_embeds.to(device).half()
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5a/anagram2_upright.png" alt="Visual anagram 2 upright"/>
-          <figcaption class="figcap">Illusion #2 (upright) — <em>Prompt A</em>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/anagram2_flipped.png" alt="Visual anagram 2 flipped"/>
-          <figcaption class="figcap">Illusion #2 (flipped) — <em>Prompt B</em>.</figcaption>
-        </figure>
-      </div>
-    </section>
+    with torch.no_grad():
+        for i in range(i_start, len(timesteps) - 1):
+            t = timesteps[i]
+            prev_t = timesteps[i+1]
+
+            alpha_cumprod_t = alphas_cumprod[t].to(device)
+            alpha_cumprod_t_prev = alphas_cumprod[prev_t].to(device)
+            alpha_t = alpha_cumprod_t / alpha_cumprod_t_prev
+            beta_t = 1 - alpha_t
+
+            model_out_1 = stage_1.unet(
+                image,
+                torch.tensor(t).to(device),
+                encoder_hidden_states=prompt_embeds_1,
+                return_dict=False
+            )[0]
+            uncond_out_1 = stage_1.unet(
+                image,
+                torch.tensor(t).to(device),
+                encoder_hidden_states=uncond_prompt_embeds,
+                return_dict=False
+            )[0]
+
+            noise_1, var_1 = torch.split(model_out_1, image.shape[1], dim=1)
+            uncond_noise_1, _ = torch.split(uncond_out_1, image.shape[1], dim=1)
+            noise_pred_1 = uncond_noise_1 + scale * (noise_1 - uncond_noise_1)
+
+            image_flipped = torch.flip(image, [2])
+
+            model_out_2 = stage_1.unet(
+                image_flipped,
+                torch.tensor(t).to(device),
+                encoder_hidden_states=prompt_embeds_2,
+                return_dict=False
+            )[0]
+            uncond_out_2 = stage_1.unet(
+                image_flipped,
+                torch.tensor(t).to(device),
+                encoder_hidden_states=uncond_prompt_embeds,
+                return_dict=False
+            )[0]
+
+            noise_2, var_2 = torch.split(model_out_2, image.shape[1], dim=1)
+            uncond_noise_2, _ = torch.split(uncond_out_2, image.shape[1], dim=1)
+            noise_pred_2 = uncond_noise_2 + scale * (noise_2 - uncond_noise_2)
+
+            noise_pred_2 = torch.flip(noise_pred_2, [2])
+            avg_variance = (var_1 + torch.flip(var_2, [2])) / 2.0
+
+            final_noise = (noise_pred_1 + noise_pred_2) / 2.0
+
+            x0_est = (image - torch.sqrt(1 - alpha_cumprod_t) * final_noise) / torch.sqrt(alpha_cumprod_t)
+            x0_est = torch.clamp(x0_est, -1, 1)
+
+            coeff1 = (torch.sqrt(alpha_cumprod_t_prev) * beta_t) / (1 - alpha_cumprod_t)
+            coeff2 = (torch.sqrt(alpha_t) * (1 - alpha_cumprod_t_prev)) / (1 - alpha_cumprod_t)
+            pred_prev_image = coeff1 * x0_est + coeff2 * image
+
+            if i < len(timesteps) - 1:
+                pred_prev_image = add_variance(avg_variance, torch.tensor(t).cpu(), pred_prev_image)
+
+            image = pred_prev_image
+
+            if display and i % 10 == 0:
+                pass
+
+    clean = image.cpu().detach().numpy()
+    clean = (clean / 2.0 + 0.5).squeeze().transpose(1, 2, 0)
+    clean = np.clip(clean, 0, 1)
+    return clean</code></pre>
+    <figcaption class="figcap">
+      Flip-illusion sampling loop used to create visual anagrams by averaging upright and flipped CFG noise estimates.
+    </figcaption>
+  </div>
+
+  <h3>Illusion 1</h3>
+  <p class="proj-sub">
+    Prompt pair: <span class="kbd">[an oil painting of an old man]</span> (upright) · <span class="kbd">[an oil painting of people around a campfire]</span> (flipped)
+  </p>
+  <div class="gallery">
+    <figure class="figure">
+      <img src="p5/anagram1_upright.png" alt="Flip illusion 1 upright"/>
+      <figcaption class="figcap">Upright view (an oil painting of an old man).</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/anagram1_flipped.png" alt="Flip illusion 1 flipped"/>
+      <figcaption class="figcap">Flipped view (an oil painting of people around a campfire).</figcaption>
+    </figure>
+  </div>
+
+  <h3>Illusion 2</h3>
+  <p class="proj-sub">
+    Prompt pair: <span class="kbd">[a photo of a snowy mountain]</span> (upright) · <span class="kbd">[an oil painting of an old man]</span> (flipped)
+  </p>
+  <div class="gallery">
+    <figure class="figure">
+      <img src="p5/anagram2_upright.png" alt="Flip illusion 2 upright"/>
+      <figcaption class="figcap">Upright view (a photo of a snowy mountain).</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/anagram2_flipped.png" alt="Flip illusion 2 flipped"/>
+      <figcaption class="figcap">Flipped view (an oil painting of an old man).</figcaption>
+    </figure>
+  </div>
+</section>
+
 
     <!-- ====================== 1.9 Hybrid Images ====================== -->
     <section class="section" id="p19-hybrids">
