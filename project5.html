@@ -1374,42 +1374,110 @@ media.show_images(
 </section>
 
 
-    <!-- ====================== 1.9 Hybrid Images ====================== -->
-    <section class="section" id="p19-hybrids">
-      <h2>Part 1.9 — Hybrid Images with Factorized Diffusion</h2>
-      <p>
-        To create diffusion-based hybrid images, I combine low-frequency structure from one prompt’s noise estimate
-        with high-frequency detail from another. This mirrors the classic hybrid image idea from Project 2,
-        but performed in the noise-prediction space of a diffusion model.
-      </p>
+<!-- ====================== 1.9 Hybrid Images ====================== -->
+<section class="section" id="p19-hybrid-images">
+  <h2>Part 1.9 — Hybrid Images</h2>
+  <p>
+    In this part I implement a factorized diffusion approach to create hybrid images with DeepFloyd Stage I.
+    I estimate two CFG noise predictions from two different prompts, then compose a combined noise estimate by
+    taking low frequencies from the first and high frequencies from the second. This mirrors the classic hybrid
+    image idea from Project 2, but performed inside the diffusion denoising loop. I use the recommended
+    Gaussian blur settings (kernel size 33, sigma 2) for the low-pass filter.
+  </p>
 
-      <div class="callout">
-        <strong>Deliverables</strong>
-        <ul>
-          <li>Implemented <span class="kbd">make_hybrids</span> function.</li>
-          <li>Two hybrid results using paired prompts.</li>
-        </ul>
-      </div>
+  <div class="callout">
+    <strong>Deliverables</strong>
+    <ul>
+      <li>Correctly implemented <span class="kbd">make_hybrids</span> function.</li>
+      <li>Two hybrid images of my choosing.</li>
+    </ul>
+  </div>
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5a/hybrid1.png" alt="Hybrid image 1"/>
-          <figcaption class="figcap">Hybrid #1 — <em>Prompt A (low-pass)</em> + <em>Prompt B (high-pass)</em>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/hybrid2.png" alt="Hybrid image 2"/>
-          <figcaption class="figcap">Hybrid #2 — <em>Prompt A (low-pass)</em> + <em>Prompt B (high-pass)</em>.</figcaption>
-        </figure>
-      </div>
+  <div class="figure">
+<pre class="codeblock"><code>def make_hybrids(image, i_start, prompt_embeds_1, prompt_embeds_2, uncond_prompt_embeds, timesteps, scale=7, display=True):
+    image = image.to(device).half()
+    prompt_embeds_1 = prompt_embeds_1.to(device).half()
+    prompt_embeds_2 = prompt_embeds_2.to(device).half()
+    uncond_prompt_embeds = uncond_prompt_embeds.to(device).half()
 
-      <div class="answer">
-        <div class="label">Perception note</div>
-        <p>
-          Up close, the high-frequency concept tends to dominate; from farther away or at smaller display sizes,
-          the low-frequency concept becomes more apparent.
-        </p>
-      </div>
-    </section>
+    with torch.no_grad():
+        for i in range(i_start, len(timesteps) - 1):
+            t = timesteps[i]
+            prev_t = timesteps[i+1]
+
+            alpha_cumprod_t = alphas_cumprod[t].to(device)
+            alpha_cumprod_t_prev = alphas_cumprod[prev_t].to(device)
+            alpha_t = alpha_cumprod_t / alpha_cumprod_t_prev
+            beta_t = 1 - alpha_t
+
+            out_1 = stage_1.unet(image, torch.tensor(t).to(device), encoder_hidden_states=prompt_embeds_1, return_dict=False)[0]
+            out_u = stage_1.unet(image, torch.tensor(t).to(device), encoder_hidden_states=uncond_prompt_embeds, return_dict=False)[0]
+
+            noise_1, var_1 = torch.split(out_1, image.shape[1], dim=1)
+            noise_u, _ = torch.split(out_u, image.shape[1], dim=1)
+            eps_1 = noise_u + scale * (noise_1 - noise_u)
+
+            out_2 = stage_1.unet(image, torch.tensor(t).to(device), encoder_hidden_states=prompt_embeds_2, return_dict=False)[0]
+
+            noise_2, var_2 = torch.split(out_2, image.shape[1], dim=1)
+            eps_2 = noise_u + scale * (noise_2 - noise_u)
+
+            low_pass_1 = TF.gaussian_blur(eps_1, kernel_size=33, sigma=2)
+            low_pass_2 = TF.gaussian_blur(eps_2, kernel_size=33, sigma=2)
+
+            eps_combined = low_pass_1 + (eps_2 - low_pass_2)
+
+            avg_variance = (var_1 + var_2) / 2.0
+
+            x0_est = (image - torch.sqrt(1 - alpha_cumprod_t) * eps_combined) / torch.sqrt(alpha_cumprod_t)
+            x0_est = torch.clamp(x0_est, -1, 1)
+
+            coeff1 = (torch.sqrt(alpha_cumprod_t_prev) * beta_t) / (1 - alpha_cumprod_t)
+            coeff2 = (torch.sqrt(alpha_t) * (1 - alpha_cumprod_t_prev)) / (1 - alpha_cumprod_t)
+            pred_prev_image = coeff1 * x0_est + coeff2 * image
+
+            if i < len(timesteps) - 1:
+                pred_prev_image = add_variance(avg_variance, torch.tensor(t).cpu(), pred_prev_image)
+
+            image = pred_prev_image
+
+    clean = image.cpu().detach().numpy()
+    clean = clean.astype(np.float32)
+    clean = (clean / 2.0 + 0.5).squeeze().transpose(1, 2, 0)
+    clean = np.clip(clean, 0, 1)
+    return clean</code></pre>
+    <figcaption class="figcap">
+      Hybrid-image diffusion loop using low-pass noise from prompt 1 and high-pass noise from prompt 2.
+    </figcaption>
+  </div>
+
+  <h3>Hybrid 1</h3>
+  <p class="proj-sub">
+    Prompt pair: <span class="kbd">[a lithograph of a skull — low frequencies]</span> ·
+    <span class="kbd">[a lithograph of waterfalls — high frequencies]</span>
+  </p>
+  <div class="gallery">
+    <figure class="figure">
+      <img src="p5/hybrid1.png" alt="Hybrid image 1"/>
+      <figcaption class="figcap">
+        Final hybrid image. From far away the low-frequency prompt should dominate; up close the high-frequency prompt emerges.
+      </figcaption>
+    </figure>
+  </div>
+
+  <h3>Hybrid 2</h3>
+  <p class="proj-sub">
+    Prompt pair: <span class="kbd">[a photo of a galaxy — low frequencies]</span> ·
+    <span class="kbd">[a photo of a human eye — high frequencies]</span>
+  </p>
+  <div class="gallery">
+    <figure class="figure">
+      <img src="p5/hybrid2.png" alt="Hybrid image 2"/>
+      <figcaption class="figcap">Final hybrid image.</figcaption>
+    </figure>
+  </div>
+</section>
+
 
   </main>
 
