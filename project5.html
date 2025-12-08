@@ -1611,44 +1611,35 @@ media.show_images(
       </div>
     </section>
 
-    <!-- ====================== B.1.2.2 OOD Testing ====================== -->
-    <section class="section" id="pb122-ood">
-      <h2>Part B.1.2.2 — Out-of-Distribution Noise Levels</h2>
-      <p>
-        After training on randomly sampled <span class="kbd">σ</span>, I test the denoiser
-        on fixed noise levels, keeping the same digit while varying σ to evaluate robustness.
-      </p>
+<!-- ====================== B 1.2.2 Out-of-Distribution Testing ====================== -->
+<section class="section" id="pb122-ood">
+  <h2>Part B 1.2.2 — Out-of-Distribution Noise Levels</h2>
+  <p>
+    After training the one-step denoising UNet on MNIST images noised with the
+    in-distribution setting, I evaluate how well it generalizes to
+    <em>out-of-distribution</em> noise levels. I keep the same test image and vary
+    <span class="kbd">σ</span> to examine robustness as the corruption strength changes.
+  </p>
 
-      <div class="callout">
-        <strong>Deliverable</strong>
-        <ul>
-          <li>Show the same test image denoised under multiple <span class="kbd">σ</span> values.</li>
-        </ul>
-      </div>
+  <div class="callout">
+    <strong>Deliverable</strong>
+    <ul>
+      <li>
+        Sample results on the test set with out-of-distribution noise levels after training,
+        keeping the same image and varying <span class="kbd">σ</span>.
+      </li>
+    </ul>
+  </div>
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/b122_input_clean.png" alt="OOD base clean test image"/>
-          <figcaption class="figcap">Reference clean digit.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/b122_denoise_sigma_010.png" alt="OOD denoising sigma 0.10"/>
-          <figcaption class="figcap"><span class="kbd">σ = 0.10</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/b122_denoise_sigma_050.png" alt="OOD denoising sigma 0.50"/>
-          <figcaption class="figcap"><span class="kbd">σ = 0.50</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/b122_denoise_sigma_080.png" alt="OOD denoising sigma 0.80"/>
-          <figcaption class="figcap"><span class="kbd">σ = 0.80</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/b122_denoise_sigma_100.png" alt="OOD denoising sigma 1.00"/>
-          <figcaption class="figcap"><span class="kbd">σ = 1.00</span>.</figcaption>
-        </figure>
-      </div>
-    </section>
+  <figure class="figure figure-center">
+    <img src="p5/ood_vis.png" alt="OOD denoising results across multiple sigma values"/>
+    <figcaption class="figcap">
+      Single-panel comparison of denoising performance on the same test digit under
+      varying <span class="kbd">σ</span> values (OOD relative to training).
+    </figcaption>
+  </figure>
+</section>
+
 
     <!-- ====================== B.1.2.3 Denoising Pure Noise ====================== -->
     <section class="section" id="pb123-purenoise">
@@ -1670,7 +1661,7 @@ media.show_images(
 
       <h3>Training loss</h3>
       <figure class="figure">
-        <img src="p5/b123_loss_curve.png" alt="Pure-noise denoiser loss curve"/>
+        <img src="p5/loss_curve_denoise.png" alt="Pure-noise denoiser loss curve"/>
         <figcaption class="figcap">
           Training loss curve for the one-step model trained to denoise pure noise.
         </figcaption>
@@ -1679,11 +1670,11 @@ media.show_images(
       <h3>Generated outputs</h3>
       <div class="gallery">
         <figure class="figure">
-          <img src="p5/b123_epoch1_samples.png" alt="Pure-noise denoiser samples after epoch 1"/>
+          <img src="p5/epoch1_samples.png" alt="Pure-noise denoiser samples after epoch 1"/>
           <figcaption class="figcap">After epoch <span class="kbd">1</span>.</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p5/b123_epoch5_samples.png" alt="Pure-noise denoiser samples after epoch 5"/>
+          <img src="p5/epoch5_samples.png" alt="Pure-noise denoiser samples after epoch 5"/>
           <figcaption class="figcap">After epoch <span class="kbd">5</span>.</figcaption>
         </figure>
       </div>
@@ -1691,10 +1682,23 @@ media.show_images(
       <div class="answer">
         <div class="label">Brief reflection</div>
         <p>
-          <!-- TODO: Replace with your own observations. -->
-          The outputs tend to collapse toward “average” digit-like structures rather than diverse,
-          high-fidelity samples. This is consistent with an MSE objective, where the model learns a
-          centroid-like estimate over the training distribution instead of a multimodal generator.
+Observations:
+
+The "Ghostly" Average: The generated images do not look like specific, sharp digits (like a clear "7" or "2"). Instead, they look like a blurry, static blob—a "ghost" digit. It resembles a superposition of all the digits in the MNIST dataset (often looking like a mix of 0, 1, and 8).
+
+Lack of Diversity: Even though you fed the network different random noise vectors (the 8 distinct inputs), the outputs are virtually identical. The network is ignoring the specific variations in the input noise.
+
+Loss Plateau: The loss curve drops very quickly and then flattens out completely. It doesn't converge to near-zero (like it did in the denoising task), but rather gets stuck at a specific non-zero value.
+
+Explanation:
+
+This behavior occurs because of the specific combination of MSE Loss (L2) and the lack of correlation between input and output.
+
+The Problem Setup: You are asking the network to map random noise  ϵ  (which contains zero information about the target) to a specific digit  x . There is no way for the network to "know" that this specific random noise vector should correspond to a "7" and that one to a "3".
+
+The Mathematical Consequence: When training with L2 loss (Mean Squared Error), the model attempts to minimize the error across the entire dataset. Mathematically, the optimal prediction that minimizes MSE is the conditional expectation (the mean) of the target distribution. Since the input noise gives no clue about the target, the conditional expectation becomes just the global average of all training images:  E[x] .
+
+The Result: The "ghost" image is literally the average pixel value of the entire MNIST training set. It is the "centroid" of the dataset.
         </p>
       </div>
     </section>
