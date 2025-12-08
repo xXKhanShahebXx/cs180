@@ -635,25 +635,85 @@ media.show_images(
         </ul>
       </div>
 
+      <div class="figure">
+<pre class="codeblock"><code>def iterative_denoise_cfg(im_noisy, i_start, prompt_embeds, uncond_prompt_embeds, timesteps, scale=7, display=True):
+  image = im_noisy.clone()
+  prompt_embeds = prompt_embeds.to(device).half()
+  uncond_prompt_embeds = uncond_prompt_embeds.to(device).half()
+  with torch.no_grad():
+    for i in range(i_start, len(timesteps) - 1):
+      t = timesteps[i]
+      prev_t = timesteps[i+1]
+
+      alpha_cumprod_t = alphas_cumprod[t].to(device)
+      alpha_cumprod_t_prev = alphas_cumprod[prev_t].to(device)
+      alpha_t = alpha_cumprod_t / alpha_cumprod_t_prev
+      beta_t = 1 - alpha_t
+
+      model_output = stage_1.unet(
+          image,
+          torch.tensor(t).to(device),
+          encoder_hidden_states=prompt_embeds,
+          return_dict=False
+      )[0]
+
+      uncond_model_output = stage_1.unet(
+          image,
+          torch.tensor(t).to(device),
+          encoder_hidden_states=uncond_prompt_embeds,
+          return_dict=False
+      )[0]
+
+      noise_est, predicted_variance = torch.split(model_output, image.shape[1], dim=1)
+      uncond_noise_est, _ = torch.split(uncond_model_output, image.shape[1], dim=1)
+
+      noise_est = uncond_noise_est + scale * (noise_est - uncond_noise_est)
+
+      x0_est = (image - torch.sqrt(1 - alpha_cumprod_t) * noise_est) / torch.sqrt(alpha_cumprod_t)
+      x0_est = torch.clamp(x0_est, -1, 1)
+
+      coeff1 = (torch.sqrt(alpha_cumprod_t_prev) * beta_t) / (1 - alpha_cumprod_t)
+      coeff2 = (torch.sqrt(alpha_t) * (1 - alpha_cumprod_t_prev)) / (1 - alpha_cumprod_t)
+
+      pred_prev_image = coeff1 * x0_est + coeff2 * image
+
+      if i < len(timesteps) - 1:
+        pred_prev_image = add_variance(predicted_variance, torch.tensor(t).cpu(), pred_prev_image)
+      image = pred_prev_image
+      if display and i % 10 == 0:
+        print(f"  Step {i} (t={t})")
+        vis_img = image[0].permute(1, 2, 0).cpu().float() / 2.0 + 0.5
+        media.show_image(vis_img, height=128)
+
+  clean = image.cpu().detach().numpy()
+  clean = (clean / 2.0 + 0.5).squeeze().transpose(1, 2, 0)
+  clean = np.clip(clean, 0, 1)
+
+  return clean</code></pre>
+  <figcaption class="figcap">
+    Classifier-Free Guidance (CFG) iterative denoising loop used to improve text-conditional sample quality.
+  </figcaption>
+</div>
+
       <div class="gallery">
         <figure class="figure">
-          <img src="p5a/sample_cfg_1.png" alt="Sample 1 with CFG"/>
+          <img src="p5/sample_cfg_1.png" alt="Sample 1 with CFG"/>
           <figcaption class="figcap">Sample 1 (CFG).</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p5a/sample_cfg_2.png" alt="Sample 2 with CFG"/>
+          <img src="p5/sample_cfg_2.png" alt="Sample 2 with CFG"/>
           <figcaption class="figcap">Sample 2 (CFG).</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p5a/sample_cfg_3.png" alt="Sample 3 with CFG"/>
+          <img src="p5/sample_cfg_3.png" alt="Sample 3 with CFG"/>
           <figcaption class="figcap">Sample 3 (CFG).</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p5a/sample_cfg_4.png" alt="Sample 4 with CFG"/>
+          <img src="p5/sample_cfg_4.png" alt="Sample 4 with CFG"/>
           <figcaption class="figcap">Sample 4 (CFG).</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p5a/sample_cfg_5.png" alt="Sample 5 with CFG"/>
+          <img src="p5/sample_cfg_5.png" alt="Sample 5 with CFG"/>
           <figcaption class="figcap">Sample 5 (CFG).</figcaption>
         </figure>
       </div>
