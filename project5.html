@@ -336,37 +336,83 @@
   </div>
 </section>
 
-    <!-- ====================== 1.3 One-Step Denoising ====================== -->
-    <section class="section" id="p13-onestep">
-      <h2>Part 1.3 — One-Step Denoising with the Pretrained UNet</h2>
-      <p>
-        Using the Stage I UNet conditioned on timestep and a weak prompt embedding
-        (<span class="kbd">"a high quality photo"</span>), I estimate the Gaussian noise and recover an
-        approximation of the original Campanile in a single denoising step.
-      </p>
+<!-- ====================== 1.3 One-Step Denoising ====================== -->
+<section class="section" id="p13-onestep">
+  <h2>Part 1.3 — One-Step Denoising with the Pretrained UNet</h2>
+  <p>
+    I use the pretrained Stage I UNet to estimate the noise in each noisy Campanile image, then recover an
+    estimate of the original image using the standard diffusion inversion formula. Unlike Gaussian blur,
+    the UNet can project the input toward the natural-image manifold, though performance degrades as the
+    noise level increases.
+  </p>
 
-      <div class="callout">
-        <strong>Deliverables</strong>
-        <ul>
-          <li>Original, noisy, and one-step denoised comparisons for <span class="kbd">t = 250, 500, 750</span>.</li>
-        </ul>
-      </div>
+  <div class="callout">
+    <strong>Deliverables</strong>
+    <ul>
+      <li>For <span class="kbd">t = 250, 500, 750</span>:
+        show the original image, the noisy image (from my forward process),
+        and the one-step denoised estimate.</li>
+    </ul>
+  </div>
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5a/onestep_t250_triplet.png" alt="Original, noisy, and one-step denoise at t=250"/>
-          <figcaption class="figcap">One-step denoising at <span class="kbd">t=250</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/onestep_t500_triplet.png" alt="Original, noisy, and one-step denoise at t=500"/>
-          <figcaption class="figcap">One-step denoising at <span class="kbd">t=500</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/onestep_t750_triplet.png" alt="Original, noisy, and one-step denoise at t=750"/>
-          <figcaption class="figcap">One-step denoising at <span class="kbd">t=750</span>.</figcaption>
-        </figure>
-      </div>
-    </section>
+  <h3>t = 250</h3>
+  <div class="gallery" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+    <figure class="figure">
+      <img src="p5/campanile_clean.png" alt="Original Campanile"/>
+      <figcaption class="figcap">Original Campanile (64×64).</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/campanile_t250.png" alt="Noisy Campanile at t=250"/>
+      <figcaption class="figcap">Noisy Campanile at <span class="kbd">t=250</span>.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/onestep_t250.png" alt="One-step denoised Campanile at t=250"/>
+      <figcaption class="figcap">One-step denoised at <span class="kbd">t=250</span>.</figcaption>
+    </figure>
+  </div>
+
+  <h3>t = 500</h3>
+  <div class="gallery" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+    <figure class="figure">
+      <img src="p5/campanile_clean.png" alt="Original Campanile"/>
+      <figcaption class="figcap">Original Campanile (64×64).</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/campanile_t500.png" alt="Noisy Campanile at t=500"/>
+      <figcaption class="figcap">Noisy Campanile at <span class="kbd">t=500</span>.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/onestep_t500.png" alt="One-step denoised Campanile at t=500"/>
+      <figcaption class="figcap">One-step denoised at <span class="kbd">t=500</span>.</figcaption>
+    </figure>
+  </div>
+
+  <h3>t = 750</h3>
+  <div class="gallery" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+    <figure class="figure">
+      <img src="p5/campanile_clean.png" alt="Original Campanile"/>
+      <figcaption class="figcap">Original Campanile (64×64).</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/campanile_t750.png" alt="Noisy Campanile at t=750"/>
+      <figcaption class="figcap">Noisy Campanile at <span class="kbd">t=750</span>.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/onestep_t750.png" alt="One-step denoised Campanile at t=750"/>
+      <figcaption class="figcap">One-step denoised at <span class="kbd">t=750</span>.</figcaption>
+    </figure>
+  </div>
+
+  <div class="answer">
+    <div class="label">Observations</div>
+    <ul>
+      <li>At <span class="kbd">t=250</span>, the UNet recovers recognizable structure and sharper edges than Gaussian blur.</li>
+      <li>At <span class="kbd">t=500</span>, the estimate is still plausible but loses finer detail.</li>
+      <li>At <span class="kbd">t=750</span>, one-step denoising struggles, motivating the iterative procedure in Part 1.4.</li>
+    </ul>
+  </div>
+</section>
+
 
     <!-- ====================== 1.4 Iterative Denoising ====================== -->
     <section class="section" id="p14-iter">
