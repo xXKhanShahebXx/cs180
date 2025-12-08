@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Project 5 — Diffusion Models & Flow Matching</title>
+  <title>Project 5A — Diffusion Models, Inpainting & Optical Illusions</title>
   <meta name="theme-color" content="#0f1226"/>
   <link rel="stylesheet" href="assets/style.css?v=2"/>
 </head>
@@ -14,7 +14,7 @@
       <div class="breadcrumb">
         <a href="index.html">← Back to Home</a>
         <span>·</span>
-        <span>Project 5 — Diffusion Models &amp; Flow Matching</span>
+        <span>Project 5A — Diffusion Models</span>
       </div>
     </div>
   </nav>
@@ -23,863 +23,510 @@
 
     <!-- ====================== OVERVIEW ====================== -->
     <section class="section" id="overview">
-      <h1 class="proj-title">Project 5 — Diffusion Models &amp; Flow Matching</h1>
+      <h1 class="proj-title">Project 5A — Diffusion Models, Sampling, Inpainting & Illusions</h1>
       <p class="proj-sub">
-        CS180/280A
-      </p>
-      <p>
-        In this project I explore diffusion from both ends: first by using a large pretrained text-to-image
-        model (DeepFloyd IF) and implementing custom sampling/editing loops, and then by training my own UNet-based
-        denoisers and flow-matching models on MNIST. Part A emphasizes understanding and manipulating the sampling
-        process; Part B focuses on building intuition by training models from scratch.
+        In Part A, I explore diffusion models through the DeepFloyd IF pipeline. I implement the forward noising process,
+        write custom sampling/denoising loops, and then adapt these loops for image-to-image editing, inpainting, and
+        classic diffusion-based optical illusions (visual anagrams + hybrid images).
       </p>
 
       <div class="callout">
         <strong>High-level structure</strong>
         <ul>
-          <li><strong>Part A:</strong> Pretrained diffusion with DeepFloyd IF — forward process, one-step and iterative denoising,
-            CFG, image-to-image editing, inpainting, visual anagrams, and hybrid images.</li>
-          <li><strong>Part B:</strong> Training diffusion-style models on MNIST — a single-step denoising UNet,
-            then a time-conditioned flow matching UNet (and optional class conditioning + CFG).</li>
+          <li><strong>Part 0:</strong> Setup, prompt embeddings, and baseline text-to-image samples.</li>
+          <li><strong>Part 1:</strong> Forward process + classical denoising, one-step denoising, iterative denoising,
+            CFG sampling, SDEdit, inpainting, text-conditional edits.</li>
+          <li><strong>Part 1.8–1.9:</strong> Visual Anagrams and Factorized Diffusion Hybrid Images.</li>
+          <li><strong>(Optional):</strong> Extra explorations if applicable for the course version.</li>
         </ul>
       </div>
 
       <div class="callout">
-        <strong>Page navigation</strong>
-        <ul>
-          <li><a href="#part-a">Part A overview</a> · <a href="#a0-prompts">A.0 Prompts</a> ·
-              <a href="#a11-forward">A.1.1 Forward</a> · <a href="#a12-gauss">A.1.2 Gaussian</a> ·
-              <a href="#a13-onestep">A.1.3 One-step</a> · <a href="#a14-iter">A.1.4 Iterative</a> ·
-              <a href="#a15-sample">A.1.5 Sampling</a> · <a href="#a16-cfg">A.1.6 CFG</a> ·
-              <a href="#a17-img2img">A.1.7 Image-to-image</a> · <a href="#a18-anagrams">A.1.8 Anagrams</a> ·
-              <a href="#a19-hybrids">A.1.9 Hybrids</a></li>
-          <li><a href="#part-b">Part B overview</a> · <a href="#b1-unet">B.1 One-step UNet</a> ·
-              <a href="#b2-flow">B.2 Flow matching</a></li>
-        </ul>
+        <strong>Jump to</strong>
+        <div class="cta-row" style="margin-top:8px">
+          <a class="btn secondary" href="#p0-setup">Part 0</a>
+          <a class="btn secondary" href="#p11-forward">1.1</a>
+          <a class="btn secondary" href="#p14-iter">1.4</a>
+          <a class="btn secondary" href="#p16-cfg">1.6</a>
+          <a class="btn secondary" href="#p17-sdedit">1.7</a>
+          <a class="btn secondary" href="#p18-anagrams">1.8</a>
+          <a class="btn secondary" href="#p19-hybrids">1.9</a>
+        </div>
       </div>
     </section>
 
-    <!-- ===================================================== -->
-    <!-- ====================== PART A ====================== -->
-    <!-- ===================================================== -->
-
-    <section class="section" id="part-a">
-      <h1 class="proj-title">Part A — Pretrained Diffusion (DeepFloyd IF)</h1>
+    <!-- ====================== PART 0 ====================== -->
+    <section class="section" id="p0-setup">
+      <h1 class="proj-title">Part 0 — Setup & Text-to-Image with DeepFloyd IF</h1>
       <p>
-        Part A is an applied dive into diffusion sampling. I use the two-stage DeepFloyd IF model and implement
-        the forward noising process and multiple reverse-process variants. Building on these components, I perform
-        classic denoising comparisons, unconditional/conditional sampling, classifier-free guidance (CFG),
-        SDEdit-style image-to-image edits, inpainting, and diffusion-based optical illusions.
+        I gained access to DeepFloyd IF via Hugging Face, generated prompt embeddings, and sampled Stage I
+        text-to-image outputs. I experimented with multiple prompts and adjusted
+        <span class="kbd">num_inference_steps</span> to observe the quality/speed trade-off.
       </p>
 
       <div class="callout">
-        <strong>Deliverables checklist (as shown on this page)</strong>
+        <strong>Deliverables</strong>
         <ul>
-          <li>3+ custom prompts with outputs and reflections (with ≥ 2 different <span class="kbd">num_inference_steps</span>).</li>
-          <li>Reported random seed used throughout Part A.</li>
-          <li>Forward noising of the Campanile at <span class="kbd">t = 250, 500, 750</span>.</li>
-          <li>Gaussian blur denoising vs. one-step UNet denoising vs. iterative denoising.</li>
-          <li>Unconditional sampling (5 images) and CFG sampling (5 images).</li>
-          <li>SDEdit on Campanile + 2 personal images; web + hand-drawn editing.</li>
-          <li>Inpainting on Campanile + 2 personal images.</li>
-          <li>Text-conditional image-to-image edits.</li>
-          <li>2 visual anagram illusions.</li>
-          <li>2 hybrid images using factorized diffusion.</li>
+          <li>3 custom prompts with images, captions, and at least two different <span class="kbd">num_inference_steps</span> values.</li>
+          <li>Report a fixed random seed used throughout Part A.</li>
         </ul>
       </div>
-    </section>
-
-    <!-- ====================== A.0 ====================== -->
-    <section class="section" id="a0-prompts">
-      <h2>Part A.0 — Setup &amp; Text-to-Image Prompts</h2>
-      <p>
-        I gained access to DeepFloyd IF through Hugging Face and generated my own prompt embeddings using the provided
-        embedding clusters. I tried a range of creative prompts (including pairs useful for later anagrams and hybrids)
-        and experimented with different inference step counts to see how guidance strength and denoising depth impact
-        alignment and detail.
-      </p>
-
-      <div class="answer">
-        <div class="label">Random seed (Part A)</div>
-        <p>
-          <strong>Seed used:</strong> <span class="kbd">[FILL_ME]</span>
-          <span class="kbd">e.g., 12345</span>.
-          I use this same seed for all subsequent Part A experiments for consistency.
-        </p>
-      </div>
 
       <div class="gallery">
         <figure class="figure">
-          <img src="p5/a0_prompt1.png" alt="Prompt 1 output"/>
+          <img src="p5a/p0_prompt1.png" alt="DeepFloyd sample for prompt 1"/>
           <figcaption class="figcap">
-            <strong>Prompt 1:</strong> <span class="kbd">[your prompt]</span> ·
-            <strong>steps:</strong> <span class="kbd">[N]</span>
+            Prompt 1 — <em>replace with your caption</em>.
           </figcaption>
         </figure>
         <figure class="figure">
-          <img src="p5/a0_prompt2.png" alt="Prompt 2 output"/>
+          <img src="p5a/p0_prompt2.png" alt="DeepFloyd sample for prompt 2"/>
           <figcaption class="figcap">
-            <strong>Prompt 2:</strong> <span class="kbd">[your prompt]</span> ·
-            <strong>steps:</strong> <span class="kbd">[N]</span>
+            Prompt 2 — <em>replace with your caption</em>.
           </figcaption>
         </figure>
       </div>
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/a0_prompt3.png" alt="Prompt 3 output"/>
-          <figcaption class="figcap">
-            <strong>Prompt 3:</strong> <span class="kbd">[your prompt]</span> ·
-            <strong>steps:</strong> <span class="kbd">[N]</span>
-          </figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/a0_prompt3_altsteps.png" alt="Prompt 3 output with different inference steps"/>
-          <figcaption class="figcap">
-            Same prompt as left with a different <span class="kbd">num_inference_steps</span> for comparison.
-          </figcaption>
-        </figure>
-      </div>
-
-      <div class="answer">
-        <div class="label">Prompt reflections</div>
-        <ul>
-          <li>I found that increasing inference steps generally improved structure and fine detail, but sometimes
-              reduced creative variety.</li>
-          <li>Prompts with concrete nouns + style constraints (camera, lighting, medium) produced more consistent results.</li>
-          <li>I pre-planned prompt pairs for visual anagrams and hybrids to reduce iteration time later.</li>
-        </ul>
-      </div>
-    </section>
-
-    <!-- ====================== A.1.1 ====================== -->
-    <section class="section" id="a11-forward">
-      <h2>Part A.1.1 — Implementing the Forward Process</h2>
-      <p>
-        I implemented the forward diffusion process that maps a clean image <span class="kbd">x₀</span> to a noisy image
-        <span class="kbd">x_t</span> using the provided cumulative noise schedule. I verified that noise increases
-        monotonically with larger <span class="kbd">t</span>.
-      </p>
-
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/campanile_64.png" alt="Resized Campanile 64x64"/>
-          <figcaption class="figcap">Resized Berkeley Campanile (64×64).</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/a11_t250.png" alt="Noisy Campanile at t=250"/>
-          <figcaption class="figcap">Noisy Campanile at <span class="kbd">t = 250</span>.</figcaption>
-        </figure>
-      </div>
-
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/a11_t500.png" alt="Noisy Campanile at t=500"/>
-          <figcaption class="figcap">Noisy Campanile at <span class="kbd">t = 500</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/a11_t750.png" alt="Noisy Campanile at t=750"/>
-          <figcaption class="figcap">Noisy Campanile at <span class="kbd">t = 750</span>.</figcaption>
-        </figure>
+      <div class="figure figure-center">
+        <img src="p5a/p0_prompt3_steps_compare.png" alt="Comparison across different inference steps"/>
+        <figcaption class="figcap">
+          Prompt 3 with two different <span class="kbd">num_inference_steps</span> settings to compare fidelity vs speed.
+        </figcaption>
       </div>
 
       <div class="answer">
         <div class="label">Notes</div>
         <ul>
-          <li>The scaling term in the forward equation is essential — this is not just “add noise.”</li>
-          <li>At higher <span class="kbd">t</span>, the image structure becomes barely recognizable, matching expectations.</li>
+          <li>I keep a single fixed seed for reproducibility across all later parts.</li>
+          <li>Higher inference steps generally produce cleaner structure and better prompt alignment.</li>
         </ul>
       </div>
     </section>
 
-    <!-- ====================== A.1.2 ====================== -->
-    <section class="section" id="a12-gauss">
-      <h2>Part A.1.2 — Classical Denoising with Gaussian Blur</h2>
+    <!-- ====================== PART 1 ====================== -->
+    <section class="section" id="p1-overview">
+      <h1 class="proj-title">Part 1 — Sampling Loops & Diffusion-Based Editing</h1>
       <p>
-        I attempted to denoise the noisy Campanile images using Gaussian blur. As expected, smoothing can reduce
-        high-frequency noise but also destroys edges and textures, making high-noise recovery especially poor.
+        In this part I implement core diffusion mechanics: the forward process, one-step denoising,
+        and accelerated iterative denoising using a strided schedule. I then extend the same loop with
+        classifier-free guidance (CFG) and apply it to sampling, SDEdit-style image-to-image translation,
+        and inpainting.
       </p>
-
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/a11_t250.png" alt="Noisy Campanile at t=250"/>
-          <figcaption class="figcap">Noisy <span class="kbd">t = 250</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/a12_gauss_t250.png" alt="Gaussian blur denoising at t=250"/>
-          <figcaption class="figcap">Gaussian blur denoising <span class="kbd">t = 250</span>.</figcaption>
-        </figure>
-      </div>
-
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/a11_t500.png" alt="Noisy Campanile at t=500"/>
-          <figcaption class="figcap">Noisy <span class="kbd">t = 500</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/a12_gauss_t500.png" alt="Gaussian blur denoising at t=500"/>
-          <figcaption class="figcap">Gaussian blur denoising <span class="kbd">t = 500</span>.</figcaption>
-        </figure>
-      </div>
-
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/a11_t750.png" alt="Noisy Campanile at t=750"/>
-          <figcaption class="figcap">Noisy <span class="kbd">t = 750</span>.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/a12_gauss_t750.png" alt="Gaussian blur denoising at t=750"/>
-          <figcaption class="figcap">Gaussian blur denoising <span class="kbd">t = 750</span>.</figcaption>
-        </figure>
-      </div>
-
-      <div class="answer">
-        <div class="label">Takeaway</div>
-        <p>
-          Classical smoothing cannot “hallucinate” missing structure — it only trades noise for blur, which highlights
-          why learned priors are so powerful in diffusion models.
-        </p>
-      </div>
     </section>
 
-    <!-- ====================== A.1.3 ====================== -->
-    <section class="section" id="a13-onestep">
-      <h2>Part A.1.3 — One-Step Denoising with DeepFloyd UNet</h2>
+    <!-- ====================== 1.1 Forward Process ====================== -->
+    <section class="section" id="p11-forward">
+      <h2>Part 1.1 — Implementing the Forward Process</h2>
       <p>
-        I used the pretrained stage-1 UNet to estimate noise for each noisy Campanile and used the diffusion
-        reconstruction formula to obtain an estimate of the clean image in a single step. This already outperforms
-        Gaussian blur, but degrades significantly as noise increases.
-      </p>
-
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/campanile_64.png" alt="Original Campanile 64x64"/>
-          <figcaption class="figcap">Original Campanile.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/a13_onestep_t250_triplet.png" alt="Original, noisy, one-step denoised at t=250"/>
-          <figcaption class="figcap">
-            <strong>t = 250:</strong> Original · Noisy · One-step estimate (composite).
-          </figcaption>
-        </figure>
-      </div>
-
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/a13_onestep_t500_triplet.png" alt="Original, noisy, one-step denoised at t=500"/>
-          <figcaption class="figcap"><strong>t = 500</strong> composite.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/a13_onestep_t750_triplet.png" alt="Original, noisy, one-step denoised at t=750"/>
-          <figcaption class="figcap"><strong>t = 750</strong> composite.</figcaption>
-        </figure>
-      </div>
-
-      <div class="answer">
-        <div class="label">Notes</div>
-        <ul>
-          <li>Even one UNet pass pulls the image toward a plausible natural-image manifold.</li>
-          <li>The method is still limited because it attempts to jump directly to <span class="kbd">x₀</span>
-              from a heavily corrupted <span class="kbd">x_t</span>.</li>
-        </ul>
-      </div>
-    </section>
-
-    <!-- ====================== A.1.4 ====================== -->
-    <section class="section" id="a14-iter">
-      <h2>Part A.1.4 — Iterative Denoising with Strided Timesteps</h2>
-      <p>
-        I implemented an iterative denoising loop using a strided schedule of timesteps (starting from
-        <span class="kbd">990</span> and stepping down by a fixed stride) and the provided variance helper.
-        This dramatically improves reconstruction quality relative to one-step denoising.
-      </p>
-
-      <div class="figure">
-<pre class="codeblock"><code># Example schedule (fill with your actual list)
-# start at 990, stride by 30, end at 0
-strided_timesteps = [990, 960, 930, 900, ..., 0]</code></pre>
-        <figcaption class="figcap">
-          Strided timestep schedule used for faster iterative denoising.
-        </figcaption>
-      </div>
-
-      <!-- Show every ~5th step (use composite image or individual frames) -->
-      <div class="figure figure-center">
-        <img src="p5/a14_denoise_every5.png" alt="Iterative denoising progression every 5 steps"/>
-        <figcaption class="figcap">
-          Iterative denoising progression (every 5th step), starting from <span class="kbd">i_start = 10</span>.
-        </figcaption>
-      </div>
-
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/campanile_64.png" alt="Original Campanile"/>
-          <figcaption class="figcap">Original.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/a14_iter_final.png" alt="Final iteratively denoised Campanile"/>
-          <figcaption class="figcap">Final iterative denoise.</figcaption>
-        </figure>
-      </div>
-
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/a13_onestep_best.png" alt="One-step denoised Campanile comparison"/>
-          <figcaption class="figcap">One-step denoise (for comparison).</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/a12_gauss_best.png" alt="Gaussian blur denoised Campanile comparison"/>
-          <figcaption class="figcap">Gaussian blur (for comparison).</figcaption>
-        </figure>
-      </div>
-
-      <div class="answer">
-        <div class="label">Comparison summary</div>
-        <ul>
-          <li>Iterative denoising steadily recovers structure, edges, and tonal consistency.</li>
-          <li>One-step denoising is noticeably worse, especially under heavy noise.</li>
-          <li>Gaussian blur reduces noise but cannot restore semantic structure.</li>
-        </ul>
-      </div>
-    </section>
-
-    <!-- ====================== A.1.5 ====================== -->
-    <section class="section" id="a15-sample">
-      <h2>Part A.1.5 — Sampling Images from Pure Noise</h2>
-      <p>
-        Using my iterative denoiser with <span class="kbd">i_start = 0</span>, I generated images from random Gaussian
-        noise under the weak conditional prompt <span class="kbd">"a high quality photo"</span>.
-      </p>
-
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/a15_sample1.png" alt="Sample 1 from pure noise"/>
-          <figcaption class="figcap">Sample 1.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/a15_sample2.png" alt="Sample 2 from pure noise"/>
-          <figcaption class="figcap">Sample 2.</figcaption>
-        </figure>
-      </div>
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/a15_sample3.png" alt="Sample 3 from pure noise"/>
-          <figcaption class="figcap">Sample 3.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/a15_sample4.png" alt="Sample 4 from pure noise"/>
-          <figcaption class="figcap">Sample 4.</figcaption>
-        </figure>
-      </div>
-      <div class="figure figure-center" style="max-width: 520px;">
-        <img src="p5/a15_sample5.png" alt="Sample 5 from pure noise"/>
-        <figcaption class="figcap">Sample 5.</figcaption>
-      </div>
-
-      <div class="answer">
-        <div class="label">Observation</div>
-        <p>
-          Without CFG, samples show reasonable global structure but can be inconsistent or abstract.
-          This sets up the motivation for classifier-free guidance.
-        </p>
-      </div>
-    </section>
-
-    <!-- ====================== A.1.6 ====================== -->
-    <section class="section" id="a16-cfg">
-      <h2>Part A.1.6 — Classifier-Free Guidance (CFG)</h2>
-      <p>
-        I implemented CFG by combining conditional and unconditional noise predictions. Using an empty prompt for
-        the unconditional branch significantly improved sample fidelity at the cost of diversity.
-      </p>
-
-      <div class="answer">
-        <div class="label">CFG hyperparameter</div>
-        <p>
-          <strong>CFG scale:</strong> <span class="kbd">[FILL_ME]</span>
-          <span class="kbd">common values: 3–10</span>.
-        </p>
-      </div>
-
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/a16_cfg1.png" alt="CFG sample 1"/>
-          <figcaption class="figcap">Sample 1 with CFG.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/a16_cfg2.png" alt="CFG sample 2"/>
-          <figcaption class="figcap">Sample 2 with CFG.</figcaption>
-        </figure>
-      </div>
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/a16_cfg3.png" alt="CFG sample 3"/>
-          <figcaption class="figcap">Sample 3 with CFG.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/a16_cfg4.png" alt="CFG sample 4"/>
-          <figcaption class="figcap">Sample 4 with CFG.</figcaption>
-        </figure>
-      </div>
-      <div class="figure figure-center" style="max-width: 520px;">
-        <img src="p5/a16_cfg5.png" alt="CFG sample 5"/>
-        <figcaption class="figcap">Sample 5 with CFG.</figcaption>
-      </div>
-
-      <div class="answer">
-        <div class="label">Observation</div>
-        <p>
-          Compared to Part A.1.5, CFG yields sharper, more coherent images with stronger prompt alignment.
-        </p>
-      </div>
-    </section>
-
-    <!-- ====================== A.1.7 ====================== -->
-    <section class="section" id="a17-img2img">
-      <h2>Part A.1.7 — Image-to-Image Translation (SDEdit), Web/Drawing Edits &amp; Inpainting</h2>
-      <p>
-        I applied SDEdit-style image-to-image translation by adding controlled noise to an input image and
-        denoising it with CFG. By varying the starting index <span class="kbd">i_start</span>, I obtained a spectrum
-        of edits from subtle to substantial. I repeated this for the Campanile and two personal images, then
-        experimented with non-photorealistic inputs and inpainting.
+        I implement <span class="kbd">forward(im, t)</span> using the cumulative noise schedule
+        <span class="kbd">alphas_cumprod</span>. Starting from a clean Campanile image, I generate
+        progressively noisier versions at increasing timesteps.
       </p>
 
       <div class="callout">
-        <strong>Noise/edit schedule</strong>
-        <p>
-          I used the recommended starting indices:
-          <span class="kbd">i_start ∈ {1, 3, 5, 7, 10, 20}</span>.
-        </p>
-      </div>
-
-      <h3>Campanile SDEdit (prompt: “a high quality photo”)</h3>
-      <div class="gallery figure-center">
-        <figure class="figure">
-          <img src="p5/a17_campanile_edits.png" alt="Campanile SDEdit grid across i_start"/>
-          <figcaption class="figcap">
-            Campanile edits across increasing <span class="kbd">i_start</span> (composite grid).
-          </figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/campanile_64.png" alt="Original Campanile"/>
-          <figcaption class="figcap">Original reference.</figcaption>
-        </figure>
-      </div>
-
-      <h3>Two personal images</h3>
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/a17_own1_edits.png" alt="SDEdit on personal image 1"/>
-          <figcaption class="figcap">Personal image 1 edits (grid).</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/a17_own2_edits.png" alt="SDEdit on personal image 2"/>
-          <figcaption class="figcap">Personal image 2 edits (grid).</figcaption>
-        </figure>
-      </div>
-
-      <h3>Editing hand-drawn &amp; web images</h3>
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/a17_web_edits.png" alt="Web image edits across i_start"/>
-          <figcaption class="figcap">Web image edits (grid).</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/a17_draw1_edits.png" alt="Hand-drawn image 1 edits"/>
-          <figcaption class="figcap">Hand-drawn image 1 edits (grid).</figcaption>
-        </figure>
-      </div>
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/a17_draw2_edits.png" alt="Hand-drawn image 2 edits"/>
-          <figcaption class="figcap">Hand-drawn image 2 edits (grid).</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/a17_draw_originals.png" alt="Original hand-drawn inputs"/>
-          <figcaption class="figcap">Original hand-drawn inputs.</figcaption>
-        </figure>
-      </div>
-
-      <h3>Inpainting</h3>
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/a17_inpaint_campanile_mask.png" alt="Campanile inpainting mask"/>
-          <figcaption class="figcap">Campanile mask.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/a17_inpaint_campanile_result.png" alt="Campanile inpainted result"/>
-          <figcaption class="figcap">Campanile inpainted.</figcaption>
-        </figure>
-      </div>
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/a17_inpaint_own1.png" alt="Personal inpaint 1"/>
-          <figcaption class="figcap">Personal image 1 inpaint.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/a17_inpaint_own2.png" alt="Personal inpaint 2"/>
-          <figcaption class="figcap">Personal image 2 inpaint.</figcaption>
-        </figure>
-      </div>
-
-      <h3>Text-conditional image-to-image translation</h3>
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/a17_textedit_campanile.png" alt="Text-conditional edits of the Campanile"/>
-          <figcaption class="figcap">
-            Campanile edits with my custom prompt
-            <span class="kbd">[your prompt]</span> across <span class="kbd">i_start</span>.
-          </figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/a17_textedit_own.png" alt="Text-conditional edits of personal images"/>
-          <figcaption class="figcap">
-            Two personal-image text-conditional edit grids.
-          </figcaption>
-        </figure>
-      </div>
-
-      <div class="answer">
-        <div class="label">Notes</div>
+        <strong>Deliverables</strong>
         <ul>
-          <li>Lower <span class="kbd">i_start</span> preserved composition; higher values encouraged stronger semantic changes.</li>
-          <li>Non-photorealistic inputs were often “pulled” toward realistic texture and shading.</li>
-          <li>Inpainting quality was sensitive to the mask shape and sometimes benefited from reruns.</li>
+          <li>Forward function implementation.</li>
+          <li>Noisy Campanile at <span class="kbd">t = 250, 500, 750</span>.</li>
         </ul>
       </div>
-    </section>
-
-    <!-- ====================== A.1.8 ====================== -->
-    <section class="section" id="a18-anagrams">
-      <h2>Part A.1.8 — Visual Anagrams (Diffusion Optical Illusions)</h2>
-      <p>
-        I implemented the visual anagrams algorithm by averaging noise estimates from two prompts —
-        one on the current image and one on its vertically flipped version — then denoising using the combined estimate.
-        The resulting image reveals a different semantic interpretation when flipped upside down.
-      </p>
 
       <div class="gallery">
         <figure class="figure">
-          <img src="p5/a18_illusion1_upright.png" alt="Visual anagram 1 upright"/>
-          <figcaption class="figcap">
-            Illusion 1 (upright) — prompt A:
-            <span class="kbd">[prompt A]</span>
-          </figcaption>
+          <img src="p5a/campanile_clean.png" alt="Original Campanile"/>
+          <figcaption class="figcap">Original 64×64 Campanile.</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p5/a18_illusion1_flipped.png" alt="Visual anagram 1 flipped"/>
-          <figcaption class="figcap">
-            Illusion 1 (flipped) — prompt B:
-            <span class="kbd">[prompt B]</span>
-          </figcaption>
-        </figure>
-      </div>
-
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/a18_illusion2_upright.png" alt="Visual anagram 2 upright"/>
-          <figcaption class="figcap">
-            Illusion 2 (upright) — prompt A:
-            <span class="kbd">[prompt A]</span>
-          </figcaption>
+          <img src="p5a/campanile_t250.png" alt="Noisy Campanile at t=250"/>
+          <figcaption class="figcap">Forward process at <span class="kbd">t=250</span>.</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p5/a18_illusion2_flipped.png" alt="Visual anagram 2 flipped"/>
-          <figcaption class="figcap">
-            Illusion 2 (flipped) — prompt B:
-            <span class="kbd">[prompt B]</span>
-          </figcaption>
+          <img src="p5a/campanile_t500.png" alt="Noisy Campanile at t=500"/>
+          <figcaption class="figcap">Forward process at <span class="kbd">t=500</span>.</figcaption>
         </figure>
-      </div>
-
-      <div class="answer">
-        <div class="label">Observation</div>
-        <p>
-          The best illusions balanced prompts that share compatible global composition while differing in local,
-          orientation-sensitive cues.
-        </p>
+        <figure class="figure">
+          <img src="p5a/campanile_t750.png" alt="Noisy Campanile at t=750"/>
+          <figcaption class="figcap">Forward process at <span class="kbd">t=750</span>.</figcaption>
+        </figure>
       </div>
     </section>
 
-    <!-- ====================== A.1.9 ====================== -->
-    <section class="section" id="a19-hybrids">
-      <h2>Part A.1.9 — Hybrid Images with Factorized Diffusion</h2>
+    <!-- ====================== 1.2 Classical Denoising ====================== -->
+    <section class="section" id="p12-gaussian">
+      <h2>Part 1.2 — Classical Denoising with Gaussian Blur</h2>
       <p>
-        I created hybrid images by combining low-frequency components of one prompt’s noise estimate with
-        high-frequency components of another. This produces an image that shifts interpretation with viewing distance
-        or scale, analogous to classic hybrid-image effects.
+        I attempt to denoise the same noisy Campanile images using Gaussian blur. As expected, this baseline
+        struggles to recover structure at high noise levels compared to a learned diffusion prior.
       </p>
 
       <div class="callout">
-        <strong>Filter settings</strong>
-        <p>
-          I used a Gaussian blur for the low-pass operator with
-          <span class="kbd">kernel size = 33</span> and <span class="kbd">sigma = 2</span>.
-        </p>
+        <strong>Deliverables</strong>
+        <ul>
+          <li>Side-by-side noisy vs Gaussian-denoised results for <span class="kbd">t = 250, 500, 750</span>.</li>
+        </ul>
       </div>
 
       <div class="gallery">
         <figure class="figure">
-          <img src="p5/a19_hybrid1_near.png" alt="Hybrid image 1 near view"/>
-          <figcaption class="figcap">
-            Hybrid 1 — near interpretation (prompt high-freq): <span class="kbd">[prompt B]</span>
-          </figcaption>
+          <img src="p5a/gauss_t250_pair.png" alt="Noisy and Gaussian blurred at t=250"/>
+          <figcaption class="figcap">Noisy vs Gaussian blur at <span class="kbd">t=250</span>.</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p5/a19_hybrid1_far.png" alt="Hybrid image 1 far view"/>
-          <figcaption class="figcap">
-            Hybrid 1 — far interpretation (prompt low-freq): <span class="kbd">[prompt A]</span>
-          </figcaption>
-        </figure>
-      </div>
-
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/a19_hybrid2_near.png" alt="Hybrid image 2 near view"/>
-          <figcaption class="figcap">
-            Hybrid 2 — near interpretation (prompt high-freq): <span class="kbd">[prompt B]</span>
-          </figcaption>
+          <img src="p5a/gauss_t500_pair.png" alt="Noisy and Gaussian blurred at t=500"/>
+          <figcaption class="figcap">Noisy vs Gaussian blur at <span class="kbd">t=500</span>.</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p5/a19_hybrid2_far.png" alt="Hybrid image 2 far view"/>
-          <figcaption class="figcap">
-            Hybrid 2 — far interpretation (prompt low-freq): <span class="kbd">[prompt A]</span>
-          </figcaption>
+          <img src="p5a/gauss_t750_pair.png" alt="Noisy and Gaussian blurred at t=750"/>
+          <figcaption class="figcap">Noisy vs Gaussian blur at <span class="kbd">t=750</span>.</figcaption>
         </figure>
-      </div>
-
-      <div class="answer">
-        <div class="label">Observation</div>
-        <p>
-          The most convincing hybrids used prompts with compatible global color palettes so the frequency blending
-          felt cohesive rather than collage-like.
-        </p>
       </div>
     </section>
 
-    <!-- ===================================================== -->
-    <!-- ====================== PART B ====================== -->
-    <!-- ===================================================== -->
-
-    <section class="section" id="part-b">
-      <h1 class="proj-title">Part B — Training UNets on MNIST</h1>
+    <!-- ====================== 1.3 One-Step Denoising ====================== -->
+    <section class="section" id="p13-onestep">
+      <h2>Part 1.3 — One-Step Denoising with the Pretrained UNet</h2>
       <p>
-        In Part B I train my own generative building blocks. I first implement a standard UNet and train it as a
-        single-step denoiser on MNIST. I then show why one-step denoising is limited for generation by training a
-        version that maps pure noise to clean images. Finally, I implement a time-conditioned UNet and train it
-        with a flow-matching objective to enable iterative denoising from noise to digits.
+        Using the Stage I UNet conditioned on timestep and a weak prompt embedding
+        (<span class="kbd">"a high quality photo"</span>), I estimate the Gaussian noise and recover an
+        approximation of the original Campanile in a single denoising step.
       </p>
 
       <div class="callout">
-        <strong>Deliverables checklist (as shown on this page)</strong>
+        <strong>Deliverables</strong>
         <ul>
-          <li>UNet architecture implementation.</li>
-          <li>Noising-process visualization over different <span class="kbd">σ</span>.</li>
-          <li>Training loss curves for:
-            <ul>
-              <li>single-step denoiser on noisy MNIST</li>
-              <li>single-step denoiser trained to denoise pure noise</li>
-              <li>time-conditioned flow-matching UNet</li>
-              <li>(optional) class-conditioned flow-matching UNet</li>
-            </ul>
-          </li>
-          <li>Test-set denoising results after epochs 1 and 5 (noise level 0.5).</li>
-          <li>Out-of-distribution noise tests.</li>
-          <li>Pure-noise denoising samples + explanation of observed patterns.</li>
-          <li>Flow-matching sampling results for epochs 1, 5, 10.</li>
-          <li>(optional) class-conditioned sampling + experiment removing LR scheduler.</li>
+          <li>Original, noisy, and one-step denoised comparisons for <span class="kbd">t = 250, 500, 750</span>.</li>
         </ul>
       </div>
-    </section>
-
-    <!-- ====================== B.1 ====================== -->
-    <section class="section" id="b1-unet">
-      <h2>Part B.1 — Training a Single-Step Denoising UNet</h2>
-      <p>
-        I implemented the unconditional UNet using the provided building blocks and trained it to denoise MNIST digits
-        corrupted by Gaussian noise. The objective is an L2 reconstruction loss between the model’s output and the
-        clean target digit.
-      </p>
-
-      <h3>B.1.1 UNet Architecture</h3>
-      <div class="figure figure-center">
-        <img src="p5/b11_unet_diagram.png" alt="UNet architecture diagram"/>
-        <figcaption class="figcap">
-          UNet architecture used for single-step denoising (insert your diagram or screenshot).
-        </figcaption>
-      </div>
-
-      <h3>B.1.2 Visualizing the Noising Process</h3>
-      <div class="figure figure-center">
-        <img src="p5/b12_noising_grid.png" alt="MNIST noising process visualization"/>
-        <figcaption class="figcap">
-          Noising examples across different <span class="kbd">σ</span> values (same digit).
-        </figcaption>
-      </div>
-
-      <h3>B.1.2.1 Training on Noisy MNIST</h3>
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5/b121_loss_curve.png" alt="Training loss curve for single-step denoiser"/>
-          <figcaption class="figcap">
-            Training loss curve for <span class="kbd">εθ</span> over 5 epochs.
-          </figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5/b121_denoise_epoch1.png" alt="Denoising results after epoch 1 with sigma 0.5"/>
-          <figcaption class="figcap">
-            Test-set denoising at <span class="kbd">σ = 0.5</span> after epoch 1.
-          </figcaption>
-        </figure>
-      </div>
-
-      <div class="figure figure-center">
-        <img src="p5/b121_denoise_epoch5.png" alt="Denoising results after epoch 5 with sigma 0.5"/>
-        <figcaption class="figcap">
-          Test-set denoising at <span class="kbd">σ = 0.5</span> after epoch 5.
-        </figcaption>
-      </div>
-
-      <h3>B.1.2.2 Out-of-Distribution Noise Levels</h3>
-      <div class="figure figure-center">
-        <img src="p5/b122_ood_sigma_grid.png" alt="OOD denoising results across multiple sigma values"/>
-        <figcaption class="figcap">
-          Same test digit denoised under varying <span class="kbd">σ</span> (in-distribution and OOD).
-        </figcaption>
-      </div>
-
-      <h3>B.1.2.3 Denoising Pure Noise</h3>
-      <p>
-        I repeated training with pure Gaussian noise inputs to explore the generative limits of single-step denoising.
-        With an MSE objective, the model tends to learn an “average” digit-like prototype rather than a diverse generator.
-      </p>
 
       <div class="gallery">
         <figure class="figure">
-          <img src="p5/b123_loss_curve.png" alt="Training loss curve for denoising pure noise"/>
-          <figcaption class="figcap">
-            Training loss curve when training the UNet to denoise pure noise.
-          </figcaption>
+          <img src="p5a/onestep_t250_triplet.png" alt="Original, noisy, and one-step denoise at t=250"/>
+          <figcaption class="figcap">One-step denoising at <span class="kbd">t=250</span>.</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p5/b123_epoch1_samples.png" alt="Samples after epoch 1 from pure noise denoiser"/>
-          <figcaption class="figcap">
-            Outputs after epoch 1 (input: pure noise).
-          </figcaption>
+          <img src="p5a/onestep_t500_triplet.png" alt="Original, noisy, and one-step denoise at t=500"/>
+          <figcaption class="figcap">One-step denoising at <span class="kbd">t=500</span>.</figcaption>
         </figure>
-      </div>
-
-      <div class="figure figure-center">
-        <img src="p5/b123_epoch5_samples.png" alt="Samples after epoch 5 from pure noise denoiser"/>
-        <figcaption class="figcap">
-          Outputs after epoch 5 (input: pure noise).
-        </figcaption>
-      </div>
-
-      <div class="answer">
-        <div class="label">Pattern explanation</div>
-        <p>
-          <span class="kbd">[FILL_ME]</span>
-          My generated outputs tended to resemble a blurred “average digit.” This aligns with the intuition that
-          under an MSE objective, the model is incentivized to predict the mean of the training distribution given
-          ambiguous inputs. When the input is pure noise, the optimal single-step prediction collapses toward a
-          dataset-level centroid rather than sampling diverse modes (digits 0–9).
-        </p>
+        <figure class="figure">
+          <img src="p5a/onestep_t750_triplet.png" alt="Original, noisy, and one-step denoise at t=750"/>
+          <figcaption class="figcap">One-step denoising at <span class="kbd">t=750</span>.</figcaption>
+        </figure>
       </div>
     </section>
 
-    <!-- ====================== B.2 ====================== -->
-    <section class="section" id="b2-flow">
-      <h2>Part B.2 — Training a Flow Matching Model</h2>
+    <!-- ====================== 1.4 Iterative Denoising ====================== -->
+    <section class="section" id="p14-iter">
+      <h2>Part 1.4 — Iterative Denoising with a Strided Schedule</h2>
       <p>
-        To enable iterative generation, I implemented a time-conditioned UNet that predicts the flow field
-        from intermediate noisy samples toward clean MNIST digits. The conditioning scalar <span class="kbd">t</span>
-        is embedded using small fully connected blocks and injected into the decoder as specified in the assignment.
+        I construct <span class="kbd">strided_timesteps</span> starting at 990 with stride 30 and implement
+        <span class="kbd">iterative_denoise</span>. This produces significantly better reconstructions than a
+        single-step estimate, especially at moderate noise levels.
       </p>
 
-      <h3>B.2.1 Time Conditioning</h3>
-      <div class="figure">
-<pre class="codeblock"><code># Pseudocode reminder (fill with your implementation details)
-# t is normalized to [0, 1]
-t1 = fc1_t(t)
-t2 = fc2_t(t)
-
-unflatten = unflatten * t1
-up1       = up1 * t2</code></pre>
-        <figcaption class="figcap">
-          Time conditioning injection points used in my UNet.
-        </figcaption>
+      <div class="callout">
+        <strong>Deliverables</strong>
+        <ul>
+          <li>Strided timestep schedule initialization.</li>
+          <li>Denoising loop visualization (every 5th step).</li>
+          <li>Comparison to one-step denoising and Gaussian blur.</li>
+        </ul>
       </div>
 
-      <h3>B.2.2 Training the Time-Conditioned UNet</h3>
       <div class="figure figure-center">
-        <img src="p5/b22_loss_curve.png" alt="Training loss curve for time-conditioned UNet"/>
+        <img src="p5a/iter_progress_strip.png" alt="Iterative denoising progression"/>
         <figcaption class="figcap">
-          Training loss for the flow-matching UNet over the full training run.
+          Iterative denoising progression (every 5th step) starting from a noisy Campanile at
+          <span class="kbd">i_start = 10</span>.
         </figcaption>
       </div>
 
-      <h3>B.2.3 Sampling Results</h3>
       <div class="gallery">
         <figure class="figure">
-          <img src="p5/b23_epoch1_samples.png" alt="Flow matching samples after 1 epoch"/>
-          <figcaption class="figcap">Sampling after epoch 1.</figcaption>
+          <img src="p5a/iter_final.png" alt="Final iteratively denoised Campanile"/>
+          <figcaption class="figcap">Final iterative reconstruction.</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p5/b23_epoch5_samples.png" alt="Flow matching samples after 5 epochs"/>
-          <figcaption class="figcap">Sampling after epoch 5.</figcaption>
+          <img src="p5a/iter_onestep_compare.png" alt="One-step comparison"/>
+          <figcaption class="figcap">One-step reconstruction (worse).</figcaption>
         </figure>
       </div>
-      <div class="figure figure-center">
-        <img src="p5/b23_epoch10_samples.png" alt="Flow matching samples after 10 epochs"/>
-        <figcaption class="figcap">Sampling after epoch 10.</figcaption>
+
+      <div class="figure figure-center" style="max-width: 740px;">
+        <img src="p5a/iter_gauss_compare.png" alt="Gaussian blur comparison"/>
+        <figcaption class="figcap">Gaussian blur baseline for reference.</figcaption>
+      </div>
+    </section>
+
+    <!-- ====================== 1.5 Sampling from Noise ====================== -->
+    <section class="section" id="p15-sampling">
+      <h2>Part 1.5 — Diffusion Model Sampling (Unconditional-ish)</h2>
+      <p>
+        By setting <span class="kbd">i_start = 0</span> and initializing with pure Gaussian noise, I use the
+        iterative denoising loop to generate images from scratch using the weak prompt
+        <span class="kbd">"a high quality photo"</span>.
+      </p>
+
+      <div class="callout">
+        <strong>Deliverables</strong>
+        <ul>
+          <li>Five sampled images without CFG.</li>
+        </ul>
       </div>
 
-      <div class="answer">
-        <div class="label">Observation</div>
-        <p>
-          Over epochs, digits become increasingly legible, indicating that the learned flow field provides a meaningful
-          direction for iterative denoising from noise toward the MNIST manifold.
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p5a/sample_nocfg_1.png" alt="Sample 1 without CFG"/>
+          <figcaption class="figcap">Sample 1 (no CFG).</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5a/sample_nocfg_2.png" alt="Sample 2 without CFG"/>
+          <figcaption class="figcap">Sample 2 (no CFG).</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5a/sample_nocfg_3.png" alt="Sample 3 without CFG"/>
+          <figcaption class="figcap">Sample 3 (no CFG).</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5a/sample_nocfg_4.png" alt="Sample 4 without CFG"/>
+          <figcaption class="figcap">Sample 4 (no CFG).</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5a/sample_nocfg_5.png" alt="Sample 5 without CFG"/>
+          <figcaption class="figcap">Sample 5 (no CFG).</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ====================== 1.6 CFG ====================== -->
+    <section class="section" id="p16-cfg">
+      <h2>Part 1.6 — Classifier-Free Guidance (CFG)</h2>
+      <p>
+        I implement <span class="kbd">iterative_denoise_cfg</span> by combining conditional and unconditional
+        noise estimates. With a positive CFG scale, generation quality improves significantly at the cost of
+        reduced diversity.
+      </p>
+
+      <div class="callout">
+        <strong>Deliverables</strong>
+        <ul>
+          <li>CFG-enabled denoising loop implementation.</li>
+          <li>Five samples of <span class="kbd">"a high quality photo"</span> using CFG.</li>
+        </ul>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p5a/sample_cfg_1.png" alt="Sample 1 with CFG"/>
+          <figcaption class="figcap">Sample 1 (CFG).</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5a/sample_cfg_2.png" alt="Sample 2 with CFG"/>
+          <figcaption class="figcap">Sample 2 (CFG).</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5a/sample_cfg_3.png" alt="Sample 3 with CFG"/>
+          <figcaption class="figcap">Sample 3 (CFG).</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5a/sample_cfg_4.png" alt="Sample 4 with CFG"/>
+          <figcaption class="figcap">Sample 4 (CFG).</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5a/sample_cfg_5.png" alt="Sample 5 with CFG"/>
+          <figcaption class="figcap">Sample 5 (CFG).</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ====================== 1.7 SDEdit + Edits ====================== -->
+    <section class="section" id="p17-sdedit">
+      <h2>Part 1.7 — Image-to-Image Translation (SDEdit)</h2>
+      <p>
+        Using CFG from this point onward, I apply SDEdit by adding noise to a real image and then projecting it
+        back to the natural image manifold. I vary the starting index
+        <span class="kbd">i_start ∈ {1, 3, 5, 7, 10, 20}</span>
+        to control edit strength.
+      </p>
+
+      <div class="callout">
+        <strong>Deliverables</strong>
+        <ul>
+          <li>Campanile edits across the required starting indices using the prompt <span class="kbd">"a high quality photo"</span>.</li>
+          <li>Two additional personal images edited with the same procedure.</li>
+        </ul>
+      </div>
+
+      <div class="figure figure-center">
+        <img src="p5a/sdedit_campanile_grid.png" alt="SDEdit Campanile results grid"/>
+        <figcaption class="figcap">
+          SDEdit on the Campanile across increasing <span class="kbd">i_start</span> values (lower = stronger edits).
+        </figcaption>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p5a/sdedit_own1_grid.png" alt="SDEdit on personal image 1"/>
+          <figcaption class="figcap">SDEdit on my image #1.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5a/sdedit_own2_grid.png" alt="SDEdit on personal image 2"/>
+          <figcaption class="figcap">SDEdit on my image #2.</figcaption>
+        </figure>
+      </div>
+
+      <!-- 1.7.1 -->
+      <div class="callout">
+        <strong>1.7.1 — Non-photorealistic inputs</strong>
+        <p style="margin:8px 0 0">
+          I also apply the same procedure to one web image and two hand-drawn sketches to demonstrate how diffusion
+          can project rough or stylized inputs onto a more realistic manifold.
         </p>
       </div>
 
-      <h3>B.2.4–B.2.6 (Optional) Class Conditioning + CFG</h3>
-      <p>
-        I optionally extended the model to include class conditioning using one-hot digit labels and implemented
-        classifier-free dropout during training. At sampling time, I applied CFG to strengthen class control.
-      </p>
-
-      <div class="gallery figure-center">
+      <div class="gallery">
         <figure class="figure">
-          <img src="p5/b26_class_grid.png" alt="Class-conditioned sampling grid"/>
-          <figcaption class="figcap">
-            Class-conditioned samples after epochs 1, 5, 10.
-            Each digit class shows 4 generated instances.
-          </figcaption>
+          <img src="p5a/sdedit_web_grid.png" alt="SDEdit on a web image"/>
+          <figcaption class="figcap">Web image projected across noise levels.</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p5/b25_class_loss_curve.png" alt="Class-conditioned training loss curve"/>
-          <figcaption class="figcap">
-            Training loss curve for the class-conditioned UNet.
-          </figcaption>
+          <img src="p5a/sdedit_draw1_grid.png" alt="SDEdit on hand-drawn image 1"/>
+          <figcaption class="figcap">Hand-drawn sketch #1 → diffusion edits.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5a/sdedit_draw2_grid.png" alt="SDEdit on hand-drawn image 2"/>
+          <figcaption class="figcap">Hand-drawn sketch #2 → diffusion edits.</figcaption>
         </figure>
       </div>
 
-      <h3>Removing the LR Scheduler</h3>
-      <div class="figure figure-center">
-        <img src="p5/b26_nosched_samples.png" alt="Sampling results without LR scheduler"/>
-        <figcaption class="figcap">
-          Samples after training without the exponential LR scheduler.
-        </figcaption>
+      <!-- 1.7.2 -->
+      <div class="callout">
+        <strong>1.7.2 — Inpainting</strong>
+        <p style="margin:8px 0 0">
+          I implement inpainting by forcing pixels outside the mask to match the appropriately noised original
+          image at each timestep.
+        </p>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p5a/inpaint_campanile_input.png" alt="Campanile input for inpainting"/>
+          <figcaption class="figcap">Input Campanile.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5a/inpaint_campanile_mask.png" alt="Inpainting mask"/>
+          <figcaption class="figcap">Binary edit mask.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5a/inpaint_campanile_result.png" alt="Campanile inpainted result"/>
+          <figcaption class="figcap">Inpainted Campanile result.</figcaption>
+        </figure>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p5a/inpaint_own1_triplet.png" alt="Personal inpainting example 1"/>
+          <figcaption class="figcap">My image #1 inpainting (input/mask/result).</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5a/inpaint_own2_triplet.png" alt="Personal inpainting example 2"/>
+          <figcaption class="figcap">My image #2 inpainting (input/mask/result).</figcaption>
+        </figure>
+      </div>
+
+      <!-- 1.7.3 -->
+      <div class="callout">
+        <strong>1.7.3 — Text-conditional image-to-image</strong>
+        <p style="margin:8px 0 0">
+          Finally, I replace the generic prompt with my own prompts to steer edits toward specific semantic changes
+          while still preserving underlying structure at lower noise levels.
+        </p>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p5a/text_edit_campanile_grid.png" alt="Text-guided edits on Campanile"/>
+          <figcaption class="figcap">Campanile edits with a custom prompt across <span class="kbd">i_start</span>.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5a/text_edit_own1_grid.png" alt="Text-guided edits on personal image 1"/>
+          <figcaption class="figcap">My image #1 with text-guided edits.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ====================== 1.8 Visual Anagrams ====================== -->
+    <section class="section" id="p18-anagrams">
+      <h2>Part 1.8 — Visual Anagrams (Flip Illusions)</h2>
+      <p>
+        I implement visual anagrams by denoising an image with two prompts simultaneously: one on the original image
+        and one on a vertically flipped copy. Averaging the aligned noise estimates produces a single image that
+        changes interpretation when flipped upside down.
+      </p>
+
+      <div class="callout">
+        <strong>Deliverables</strong>
+        <ul>
+          <li>Implemented <span class="kbd">visual_anagrams</span> function.</li>
+          <li>Two flip illusions with paired prompts.</li>
+        </ul>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p5a/anagram1_upright.png" alt="Visual anagram 1 upright"/>
+          <figcaption class="figcap">Illusion #1 (upright) — <em>Prompt A</em>.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5a/anagram1_flipped.png" alt="Visual anagram 1 flipped"/>
+          <figcaption class="figcap">Illusion #1 (flipped) — <em>Prompt B</em>.</figcaption>
+        </figure>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p5a/anagram2_upright.png" alt="Visual anagram 2 upright"/>
+          <figcaption class="figcap">Illusion #2 (upright) — <em>Prompt A</em>.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5a/anagram2_flipped.png" alt="Visual anagram 2 flipped"/>
+          <figcaption class="figcap">Illusion #2 (flipped) — <em>Prompt B</em>.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ====================== 1.9 Hybrid Images ====================== -->
+    <section class="section" id="p19-hybrids">
+      <h2>Part 1.9 — Hybrid Images with Factorized Diffusion</h2>
+      <p>
+        To create diffusion-based hybrid images, I combine low-frequency structure from one prompt’s noise estimate
+        with high-frequency detail from another. This mirrors the classic hybrid image idea from Project 2,
+        but performed in the noise-prediction space of a diffusion model.
+      </p>
+
+      <div class="callout">
+        <strong>Deliverables</strong>
+        <ul>
+          <li>Implemented <span class="kbd">make_hybrids</span> function.</li>
+          <li>Two hybrid results using paired prompts.</li>
+        </ul>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p5a/hybrid1.png" alt="Hybrid image 1"/>
+          <figcaption class="figcap">Hybrid #1 — <em>Prompt A (low-pass)</em> + <em>Prompt B (high-pass)</em>.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5a/hybrid2.png" alt="Hybrid image 2"/>
+          <figcaption class="figcap">Hybrid #2 — <em>Prompt A (low-pass)</em> + <em>Prompt B (high-pass)</em>.</figcaption>
+        </figure>
       </div>
 
       <div class="answer">
-        <div class="label">What I changed without the scheduler</div>
+        <div class="label">Perception note</div>
         <p>
-          <span class="kbd">[FILL_ME]</span>
-          I compensated for removing the exponential decay by adjusting
-          <span class="kbd">[learning rate / batch size / training epochs / gradient clipping / weight decay]</span>
-          to maintain stability and comparable sample quality.
+          Up close, the high-frequency concept tends to dominate; from farther away or at smaller display sizes,
+          the low-frequency concept becomes more apparent.
         </p>
       </div>
     </section>
@@ -887,7 +534,7 @@ up1       = up1 * t2</code></pre>
   </main>
 
   <footer class="container footer">
-    <div>Project 5 · CS180/280A</div>
+    <div>Project 5A · CS180/280A</div>
   </footer>
 </body>
 </html>
