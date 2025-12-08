@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Project 5A — Diffusion Models, Inpainting & Optical Illusions</title>
+  <title>Project 5 — Diffusion Models & Flow Matching</title>
   <meta name="theme-color" content="#0f1226"/>
   <link rel="stylesheet" href="assets/style.css?v=2"/>
 </head>
@@ -14,7 +14,7 @@
       <div class="breadcrumb">
         <a href="index.html">← Back to Home</a>
         <span>·</span>
-        <span>Project 5A — Diffusion Models</span>
+        <span>Project 5 — Fun With Diffusion Models</span>
       </div>
     </div>
   </nav>
@@ -1479,10 +1479,425 @@ media.show_images(
 </section>
 
 
+    <!-- ====================== PART B (ADD ABOVE PART A) ====================== -->
+    <section class="section" id="pb-overview">
+      <h1 class="proj-title">Part B — Flow Matching on MNIST</h1>
+      <p class="proj-sub">
+        In Part B, I train a UNet on MNIST for (1) single-step denoising and
+        (2) iterative generation using flow matching. I first validate the architecture
+        on an L2 denoising objective, then add time-conditioning to predict the flow field
+        from noise to data. Optionally, I extend the model with class-conditioning and
+        classifier-free guidance for faster convergence and controllable sampling.
+      </p>
+
+      <div class="callout">
+        <strong>High-level structure</strong>
+        <ul>
+          <li><strong>Part B.1:</strong> Single-step denoising UNet on MNIST.</li>
+          <li><strong>Part B.2:</strong> Time-conditioned flow matching UNet + iterative sampling.</li>
+          <li><strong>Part B.2.4–2.6 (Optional):</strong> Class-conditioning + CFG + scheduler ablation.</li>
+        </ul>
+      </div>
+
+      <div class="callout">
+        <strong>Jump to</strong>
+        <div class="cta-row" style="margin-top:8px">
+          <a class="btn secondary" href="#pb11-unet">B.1.1</a>
+          <a class="btn secondary" href="#pb12-noise">B.1.2</a>
+          <a class="btn secondary" href="#pb121-train">B.1.2.1</a>
+          <a class="btn secondary" href="#pb122-ood">B.1.2.2</a>
+          <a class="btn secondary" href="#pb123-purenoise">B.1.2.3</a>
+          <a class="btn secondary" href="#pb21-time">B.2.1</a>
+          <a class="btn secondary" href="#pb22-train">B.2.2</a>
+          <a class="btn secondary" href="#pb23-sample">B.2.3</a>
+          <a class="btn secondary" href="#pb24-class">B.2.4+</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================== B.1 Single-Step Denoising ====================== -->
+    <section class="section" id="pb1-single-step">
+      <h1 class="proj-title">Part B.1 — Training a Single-Step Denoising UNet</h1>
+      <p>
+        As a warmup, I train an unconditional UNet to map a noisy MNIST digit
+        <span class="kbd">x_t</span> to the clean digit <span class="kbd">x</span>
+        using an L2 denoising objective. This validates my UNet implementation
+        before moving to flow matching.
+      </p>
+    </section>
+
+    <!-- ====================== B.1.1 UNet Architecture ====================== -->
+    <section class="section" id="pb11-unet">
+      <h2>Part B.1.1 — Implementing the UNet</h2>
+      <p>
+        I implement the unconditional UNet using downsampling and upsampling blocks with
+        skip connections following the provided architecture. I set the hidden dimension
+        to <span class="kbd">D = 128</span> for the single-step denoiser.
+      </p>
+
+      <div class="callout">
+        <strong>Deliverable</strong>
+        <ul>
+          <li>Correct UNet implementation matching the architecture spec.</li>
+        </ul>
+      </div>
+
+      <div class="answer">
+        <div class="label">Implementation notes</div>
+        <ul>
+          <li>Down/Up blocks preserve spatial alignment for skip concatenations.</li>
+          <li>BatchNorm + GELU used as specified in the diagram.</li>
+          <li>All tensor shapes verified across the 28×28 → 7×7 → 28×28 path.</li>
+        </ul>
+      </div>
+
+      <!-- Optional placeholder if you want to show a code excerpt later -->
+      <figure class="figure">
+        <pre class="codeblock"><code>// TODO (optional): paste your UNet class / block definitions here</code></pre>
+        <figcaption class="figcap">
+          *(Optional)* UNet implementation snippet for the single-step denoiser.
+        </figcaption>
+      </figure>
+    </section>
+
+    <!-- ====================== B.1.2 Noising Process ====================== -->
+    <section class="section" id="pb12-noise">
+      <h2>Part B.1.2 — Generating Noisy Training Pairs</h2>
+      <p>
+        To create training pairs <span class="kbd">(x_t, x)</span>, I noise clean MNIST
+        images using the provided process with a randomly sampled
+        <span class="kbd">σ</span> each iteration. I visualize how increasing noise
+        levels progressively destroy fine digit structure.
+      </p>
+
+      <div class="callout">
+        <strong>Deliverable</strong>
+        <ul>
+          <li>Visualization of the noising process by varying <span class="kbd">σ</span>.</li>
+        </ul>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p5/b12_clean.png" alt="MNIST clean example"/>
+          <figcaption class="figcap">Clean <span class="kbd">x</span>.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5/b12_sigma_025.png" alt="MNIST noised sigma 0.25"/>
+          <figcaption class="figcap"><span class="kbd">σ = 0.25</span>.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5/b12_sigma_050.png" alt="MNIST noised sigma 0.50"/>
+          <figcaption class="figcap"><span class="kbd">σ = 0.50</span>.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5/b12_sigma_075.png" alt="MNIST noised sigma 0.75"/>
+          <figcaption class="figcap"><span class="kbd">σ = 0.75</span>.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5/b12_sigma_100.png" alt="MNIST noised sigma 1.00"/>
+          <figcaption class="figcap"><span class="kbd">σ = 1.00</span>.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ====================== B.1.2.1 Training ====================== -->
+    <section class="section" id="pb121-train">
+      <h2>Part B.1.2.1 — Training the One-Step Denoiser</h2>
+      <p>
+        I train the unconditional UNet on the MNIST training set for
+        <span class="kbd">5</span> epochs using Adam with learning rate
+        <span class="kbd">1e-4</span> and batch size <span class="kbd">256</span>.
+        Noise is applied on-the-fly each batch to improve generalization.
+      </p>
+
+      <div class="callout">
+        <strong>Recommended setup (used)</strong>
+        <ul>
+          <li>Model: UNet with <span class="kbd">D = 128</span></li>
+          <li>Optimizer: Adam, <span class="kbd">lr = 1e-4</span></li>
+          <li>Batch size: <span class="kbd">256</span></li>
+          <li>Epochs: <span class="kbd">5</span></li>
+        </ul>
+      </div>
+
+      <h3>Training loss</h3>
+      <figure class="figure">
+        <img src="p5/b121_loss_curve.png" alt="Part B 1.2.1 training loss curve"/>
+        <figcaption class="figcap">
+          Training loss curve for the one-step denoising UNet.
+        </figcaption>
+      </figure>
+
+      <h3>Test results with σ = 0.5</h3>
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p5/b121_epoch1_sigma05.png" alt="One-step denoiser results after epoch 1"/>
+          <figcaption class="figcap">After epoch <span class="kbd">1</span>.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5/b121_epoch5_sigma05.png" alt="One-step denoiser results after epoch 5"/>
+          <figcaption class="figcap">After epoch <span class="kbd">5</span>.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ====================== B.1.2.2 OOD Testing ====================== -->
+    <section class="section" id="pb122-ood">
+      <h2>Part B.1.2.2 — Out-of-Distribution Noise Levels</h2>
+      <p>
+        After training on randomly sampled <span class="kbd">σ</span>, I test the denoiser
+        on fixed noise levels, keeping the same digit while varying σ to evaluate robustness.
+      </p>
+
+      <div class="callout">
+        <strong>Deliverable</strong>
+        <ul>
+          <li>Show the same test image denoised under multiple <span class="kbd">σ</span> values.</li>
+        </ul>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p5/b122_input_clean.png" alt="OOD base clean test image"/>
+          <figcaption class="figcap">Reference clean digit.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5/b122_denoise_sigma_010.png" alt="OOD denoising sigma 0.10"/>
+          <figcaption class="figcap"><span class="kbd">σ = 0.10</span>.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5/b122_denoise_sigma_050.png" alt="OOD denoising sigma 0.50"/>
+          <figcaption class="figcap"><span class="kbd">σ = 0.50</span>.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5/b122_denoise_sigma_080.png" alt="OOD denoising sigma 0.80"/>
+          <figcaption class="figcap"><span class="kbd">σ = 0.80</span>.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5/b122_denoise_sigma_100.png" alt="OOD denoising sigma 1.00"/>
+          <figcaption class="figcap"><span class="kbd">σ = 1.00</span>.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ====================== B.1.2.3 Denoising Pure Noise ====================== -->
+    <section class="section" id="pb123-purenoise">
+      <h2>Part B.1.2.3 — Denoising Pure Noise</h2>
+      <p>
+        To test whether one-step denoising can be used generatively, I repeat training
+        but provide pure Gaussian noise as input and supervise toward clean MNIST targets.
+        I visualize the outputs after epoch 1 and 5 and analyze the patterns the model tends to produce.
+      </p>
+
+      <div class="callout">
+        <strong>Deliverables</strong>
+        <ul>
+          <li>Training loss curve for the “pure-noise → digit” objective.</li>
+          <li>Samples after epoch 1 and 5.</li>
+          <li>Brief explanation of observed patterns.</li>
+        </ul>
+      </div>
+
+      <h3>Training loss</h3>
+      <figure class="figure">
+        <img src="p5/b123_loss_curve.png" alt="Pure-noise denoiser loss curve"/>
+        <figcaption class="figcap">
+          Training loss curve for the one-step model trained to denoise pure noise.
+        </figcaption>
+      </figure>
+
+      <h3>Generated outputs</h3>
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p5/b123_epoch1_samples.png" alt="Pure-noise denoiser samples after epoch 1"/>
+          <figcaption class="figcap">After epoch <span class="kbd">1</span>.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5/b123_epoch5_samples.png" alt="Pure-noise denoiser samples after epoch 5"/>
+          <figcaption class="figcap">After epoch <span class="kbd">5</span>.</figcaption>
+        </figure>
+      </div>
+
+      <div class="answer">
+        <div class="label">Brief reflection</div>
+        <p>
+          <!-- TODO: Replace with your own observations. -->
+          The outputs tend to collapse toward “average” digit-like structures rather than diverse,
+          high-fidelity samples. This is consistent with an MSE objective, where the model learns a
+          centroid-like estimate over the training distribution instead of a multimodal generator.
+        </p>
+      </div>
+    </section>
+
+    <!-- ====================== B.2 Flow Matching ====================== -->
+    <section class="section" id="pb2-flow">
+      <h1 class="proj-title">Part B.2 — Training a Flow Matching Model</h1>
+      <p>
+        One-step denoising is not sufficient for high-quality generation. I therefore train a
+        time-conditioned UNet to predict the flow field that transports samples from noise to data.
+        This enables iterative sampling from pure noise to recognizable MNIST digits.
+      </p>
+    </section>
+
+    <!-- ====================== B.2.1 Time Conditioning ====================== -->
+    <section class="section" id="pb21-time">
+      <h2>Part B.2.1 — Adding Time Conditioning to UNet</h2>
+      <p>
+        I inject the scalar timestep <span class="kbd">t</span> into the UNet using two FCBlocks,
+        modulating the <span class="kbd">unflatten</span> and <span class="kbd">up1</span> activations
+        as specified. I normalize <span class="kbd">t</span> to <span class="kbd">[0, 1]</span>
+        before embedding.
+      </p>
+
+      <div class="callout">
+        <strong>Deliverable</strong>
+        <ul>
+          <li>Correct time-conditioned UNet implementation with FCBlock modulation.</li>
+        </ul>
+      </div>
+
+      <figure class="figure">
+        <pre class="codeblock"><code>// TODO (optional): paste your FCBlock + time-conditioned UNet code here
+// Key idea:
+// - t normalized to [0, 1]
+// - unflatten = unflatten * t1
+// - up1 = up1 * t2</code></pre>
+        <figcaption class="figcap">
+          *(Optional)* Time-conditioning injection points used for flow matching.
+        </figcaption>
+      </figure>
+    </section>
+
+    <!-- ====================== B.2.2 Training ====================== -->
+    <section class="section" id="pb22-train">
+      <h2>Part B.2.2 — Training the Time-Conditioned UNet</h2>
+      <p>
+        I train the time-conditioned UNet to predict the flow
+        <span class="kbd">u_t = x - z</span> under linear interpolation between a clean
+        image <span class="kbd">x</span> and a noise sample <span class="kbd">z</span>.
+        I use the recommended hidden size <span class="kbd">D = 64</span>,
+        batch size <span class="kbd">64</span>, Adam with initial learning rate
+        <span class="kbd">1e-2</span>, and an exponential LR decay scheduler.
+      </p>
+
+      <div class="callout">
+        <strong>Training setup (recommended)</strong>
+        <ul>
+          <li>Model: time-conditioned UNet, <span class="kbd">D = 64</span></li>
+          <li>Batch size: <span class="kbd">64</span></li>
+          <li>Optimizer: Adam, <span class="kbd">lr = 1e-2</span></li>
+          <li>Scheduler: ExponentialLR, <span class="kbd">gamma = 0.5</span></li>
+        </ul>
+      </div>
+
+      <figure class="figure">
+        <img src="p5/b22_timecond_loss_curve.png" alt="Time-conditioned UNet loss curve"/>
+        <figcaption class="figcap">
+          Training loss curve for the time-conditioned flow matching UNet.
+        </figcaption>
+      </figure>
+    </section>
+
+    <!-- ====================== B.2.3 Sampling ====================== -->
+    <section class="section" id="pb23-sample">
+      <h2>Part B.2.3 — Sampling from the Time-Conditioned UNet</h2>
+      <p>
+        I generate samples by starting from pure Gaussian noise and iteratively updating the image
+        using the predicted flow across timesteps. I show sampling quality as training progresses.
+      </p>
+
+      <div class="callout">
+        <strong>Deliverables</strong>
+        <ul>
+          <li>Sampling results after <span class="kbd">1</span>, <span class="kbd">5</span>, and <span class="kbd">10</span> epochs.</li>
+        </ul>
+      </div>
+
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p5/b23_samples_epoch1.png" alt="Flow matching samples after epoch 1"/>
+          <figcaption class="figcap">Epoch <span class="kbd">1</span>.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5/b23_samples_epoch5.png" alt="Flow matching samples after epoch 5"/>
+          <figcaption class="figcap">Epoch <span class="kbd">5</span>.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5/b23_samples_epoch10.png" alt="Flow matching samples after epoch 10"/>
+          <figcaption class="figcap">Epoch <span class="kbd">10</span>.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ====================== B.2.4+ Class Conditioning (Optional) ====================== -->
+    <section class="section" id="pb24-class">
+      <h2>Part B.2.4 — Adding Class Conditioning (Optional)</h2>
+      <p>
+        To improve sample quality and control, I optionally condition the UNet on the digit class
+        using one-hot vectors. I apply classifier-free dropout by zeroing the class conditioning
+        10% of the time.
+      </p>
+
+      <div class="callout">
+        <strong>Deliverables</strong>
+        <ul>
+          <li>Training loss curve for the class-conditioned UNet.</li>
+          <li>CFG sampling results after <span class="kbd">1</span>, <span class="kbd">5</span>, and <span class="kbd">10</span> epochs.</li>
+          <li>Generate 4 instances of each digit class.</li>
+        </ul>
+      </div>
+
+      <figure class="figure">
+        <img src="p5/b24_classcond_loss_curve.png" alt="Class-conditioned UNet loss curve"/>
+        <figcaption class="figcap">
+          Training loss curve for class-conditioned flow matching UNet.
+        </figcaption>
+      </figure>
+
+      <h3>Class-conditioned samples (with CFG)</h3>
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p5/b26_class_samples_epoch1.png" alt="Class-conditioned samples epoch 1"/>
+          <figcaption class="figcap">Epoch <span class="kbd">1</span>.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5/b26_class_samples_epoch5.png" alt="Class-conditioned samples epoch 5"/>
+          <figcaption class="figcap">Epoch <span class="kbd">5</span>.</figcaption>
+        </figure>
+        <figure class="figure">
+          <img src="p5/b26_class_samples_epoch10.png" alt="Class-conditioned samples epoch 10"/>
+          <figcaption class="figcap">Epoch <span class="kbd">10</span>.</figcaption>
+        </figure>
+      </div>
+
+      <h3>Scheduler ablation</h3>
+      <p>
+        I remove the exponential LR scheduler and adjust my training setup to maintain comparable performance.
+      </p>
+
+      <div class="gallery">
+        <figure class="figure">
+          <img src="p5/b26_no_scheduler_samples.png" alt="Samples without LR scheduler"/>
+          <figcaption class="figcap">Samples after training <em>without</em> the LR scheduler.</figcaption>
+        </figure>
+      </div>
+
+      <div class="answer">
+        <div class="label">What I changed to compensate</div>
+        <p>
+          <!-- TODO: Replace with your actual compensation strategy. -->
+          I compensated for removing the scheduler by tuning the initial learning rate and/or extending
+          training slightly, while monitoring stability and convergence of the flow loss.
+        </p>
+      </div>
+    </section>
+
+
   </main>
 
   <footer class="container footer">
-    <div>Project 5A · CS180/280A</div>
+    <div>Project 5 · CS180/280A</div>
   </footer>
 </body>
 </html>
