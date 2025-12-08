@@ -719,41 +719,136 @@ media.show_images(
       </div>
     </section>
 
-    <!-- ====================== 1.7 SDEdit + Edits ====================== -->
-    <section class="section" id="p17-sdedit">
-      <h2>Part 1.7 — Image-to-Image Translation (SDEdit)</h2>
-      <p>
-        Using CFG from this point onward, I apply SDEdit by adding noise to a real image and then projecting it
-        back to the natural image manifold. I vary the starting index
-        <span class="kbd">i_start ∈ {1, 3, 5, 7, 10, 20}</span>
-        to control edit strength.
-      </p>
+<!-- ====================== 1.7 Image-to-image Translation ====================== -->
+<section class="section" id="p17-sdedit">
+  <h2>Part 1.7 — Image-to-image Translation (SDEdit)</h2>
+  <p>
+    Using my forward process and the CFG denoising loop, I apply the SDEdit-style procedure:
+    I add noise to an input image at a chosen starting index and then iteratively denoise it with the
+    conditional prompt <span class="kbd">"a high quality photo"</span>. Smaller <span class="kbd">i_start</span>
+    values correspond to heavier edits, while larger values preserve more of the original structure.
+  </p>
 
-      <div class="callout">
-        <strong>Deliverables</strong>
-        <ul>
-          <li>Campanile edits across the required starting indices using the prompt <span class="kbd">"a high quality photo"</span>.</li>
-          <li>Two additional personal images edited with the same procedure.</li>
-        </ul>
-      </div>
+  <div class="callout">
+    <strong>Deliverables</strong>
+    <ul>
+      <li>Edits of the Campanile at <span class="kbd">i_start = [1, 3, 5, 7, 10, 20]</span>.</li>
+      <li>Edits of 2 of my own images using the same procedure.</li>
+    </ul>
+  </div>
 
-      <div class="figure figure-center">
-        <img src="p5a/sdedit_campanile_grid.png" alt="SDEdit Campanile results grid"/>
-        <figcaption class="figcap">
-          SDEdit on the Campanile across increasing <span class="kbd">i_start</span> values (lower = stronger edits).
-        </figcaption>
-      </div>
+  <!-- ---------------------- Campanile ---------------------- -->
+  <h3>Campanile</h3>
+  <div class="figure figure-center" style="max-width:520px;">
+    <img src="p5/campanile_clean.png" alt="Original Campanile"/>
+    <figcaption class="figcap">Original Campanile.</figcaption>
+  </div>
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5a/sdedit_own1_grid.png" alt="SDEdit on personal image 1"/>
-          <figcaption class="figcap">SDEdit on my image #1.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/sdedit_own2_grid.png" alt="SDEdit on personal image 2"/>
-          <figcaption class="figcap">SDEdit on my image #2.</figcaption>
-        </figure>
-      </div>
+  <div class="gallery">
+    <figure class="figure">
+      <img src="p5/campanile_sdedit_1.png" alt="Campanile SDEdit i_start=1"/>
+      <figcaption class="figcap">SDEdit with <span class="kbd">i_start=1</span>.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/campanile_sdedit_3.png" alt="Campanile SDEdit i_start=3"/>
+      <figcaption class="figcap">SDEdit with <span class="kbd">i_start=3</span>.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/campanile_sdedit_5.png" alt="Campanile SDEdit i_start=5"/>
+      <figcaption class="figcap">SDEdit with <span class="kbd">i_start=5</span>.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/campanile_sdedit_7.png" alt="Campanile SDEdit i_start=7"/>
+      <figcaption class="figcap">SDEdit with <span class="kbd">i_start=7</span>.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/campanile_sdedit_10.png" alt="Campanile SDEdit i_start=10"/>
+      <figcaption class="figcap">SDEdit with <span class="kbd">i_start=10</span>.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/campanile_sdedit_20.png" alt="Campanile SDEdit i_start=20"/>
+      <figcaption class="figcap">SDEdit with <span class="kbd">i_start=20</span>.</figcaption>
+    </figure>
+  </div>
+
+  <!-- ---------------------- Personal Image 1 ---------------------- -->
+  <h3>Personal image 1</h3>
+  <div class="figure figure-center" style="max-width:520px;">
+    <img src="p5/personal1_clean.png" alt="Original personal image 1"/>
+    <figcaption class="figcap">Original personal image 1 (input image).</figcaption>
+  </div>
+
+  <div class="gallery">
+    <figure class="figure">
+      <img src="p5/personal1_sdedit_1.png" alt="Personal image 1 SDEdit i_start=1"/>
+      <figcaption class="figcap">SDEdit with <span class="kbd">i_start=1</span>.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/personal1_sdedit_3.png" alt="Personal image 1 SDEdit i_start=3"/>
+      <figcaption class="figcap">SDEdit with <span class="kbd">i_start=3</span>.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/personal1_sdedit_5.png" alt="Personal image 1 SDEdit i_start=5"/>
+      <figcaption class="figcap">SDEdit with <span class="kbd">i_start=5</span>.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/personal1_sdedit_7.png" alt="Personal image 1 SDEdit i_start=7"/>
+      <figcaption class="figcap">SDEdit with <span class="kbd">i_start=7</span>.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/personal1_sdedit_10.png" alt="Personal image 1 SDEdit i_start=10"/>
+      <figcaption class="figcap">SDEdit with <span class="kbd">i_start=10</span>.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/personal1_sdedit_20.png" alt="Personal image 1 SDEdit i_start=20"/>
+      <figcaption class="figcap">SDEdit with <span class="kbd">i_start=20</span>.</figcaption>
+    </figure>
+  </div>
+
+  <!-- ---------------------- Personal Image 2 ---------------------- -->
+  <h3>Personal image 2</h3>
+  <div class="figure figure-center" style="max-width:520px;">
+    <img src="p5/personal2_clean.png" alt="Original personal image 2"/>
+    <figcaption class="figcap">Original personal image 2 (input image).</figcaption>
+  </div>
+
+  <div class="gallery">
+    <figure class="figure">
+      <img src="p5/personal2_sdedit_1.png" alt="Personal image 2 SDEdit i_start=1"/>
+      <figcaption class="figcap">SDEdit with <span class="kbd">i_start=1</span>.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/personal2_sdedit_3.png" alt="Personal image 2 SDEdit i_start=3"/>
+      <figcaption class="figcap">SDEdit with <span class="kbd">i_start=3</span>.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/personal2_sdedit_5.png" alt="Personal image 2 SDEdit i_start=5"/>
+      <figcaption class="figcap">SDEdit with <span class="kbd">i_start=5</span>.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/personal2_sdedit_7.png" alt="Personal image 2 SDEdit i_start=7"/>
+      <figcaption class="figcap">SDEdit with <span class="kbd">i_start=7</span>.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/personal2_sdedit_10.png" alt="Personal image 2 SDEdit i_start=10"/>
+      <figcaption class="figcap">SDEdit with <span class="kbd">i_start=10</span>.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/personal2_sdedit_20.png" alt="Personal image 2 SDEdit i_start=20"/>
+      <figcaption class="figcap">SDEdit with <span class="kbd">i_start=20</span>.</figcaption>
+    </figure>
+  </div>
+
+  <div class="answer">
+    <div class="label">Observations</div>
+    <ul>
+      <li>Lower <span class="kbd">i_start</span> values induce stronger edits because the model must “invent” more content while denoising.</li>
+      <li>Higher <span class="kbd">i_start</span> values preserve the original structure more faithfully and look closer to the input.</li>
+      <li>This behavior is consistent across the Campanile and my two personal images.</li>
+    </ul>
+  </div>
+</section>
+
 
       <!-- 1.7.1 -->
       <div class="callout">
