@@ -414,48 +414,170 @@
 </section>
 
 
-    <!-- ====================== 1.4 Iterative Denoising ====================== -->
-    <section class="section" id="p14-iter">
-      <h2>Part 1.4 — Iterative Denoising with a Strided Schedule</h2>
-      <p>
-        I construct <span class="kbd">strided_timesteps</span> starting at 990 with stride 30 and implement
-        <span class="kbd">iterative_denoise</span>. This produces significantly better reconstructions than a
-        single-step estimate, especially at moderate noise levels.
-      </p>
+<!-- ====================== 1.4 Iterative Denoising ====================== -->
+<section class="section" id="p14-iterative">
+  <h2>Part 1.4 — Iterative Denoising with a Strided Schedule</h2>
+  <p>
+    I implement a strided DDPM-style reverse process using the pretrained DeepFloyd Stage I UNet.
+    Starting from a moderately noisy Campanile, I iteratively predict the clean image estimate,
+    step toward a less noisy timestep, and add the model-predicted variance. I display every 5th
+    step of the denoising loop and compare the final result against one-step denoising and a
+    Gaussian blur baseline.
+  </p>
 
-      <div class="callout">
-        <strong>Deliverables</strong>
-        <ul>
-          <li>Strided timestep schedule initialization.</li>
-          <li>Denoising loop visualization (every 5th step).</li>
-          <li>Comparison to one-step denoising and Gaussian blur.</li>
-        </ul>
-      </div>
+  <div class="callout">
+    <strong>Deliverables</strong>
+    <ul>
+      <li>Create <span class="kbd">strided_timesteps</span> from 990 to 0 in steps of 30 and initialize the scheduler.</li>
+      <li>Implement <span class="kbd">iterative_denoise</span>.</li>
+      <li>Show the noisy Campanile every 5th loop of denoising.</li>
+      <li>Compare final iterative result vs. one-step vs. Gaussian blur.</li>
+    </ul>
+  </div>
 
-      <div class="figure figure-center">
-        <img src="p5a/iter_progress_strip.png" alt="Iterative denoising progression"/>
-        <figcaption class="figcap">
-          Iterative denoising progression (every 5th step) starting from a noisy Campanile at
-          <span class="kbd">i_start = 10</span>.
-        </figcaption>
-      </div>
+  <div class="figure">
+<pre class="codeblock"><code>strided_timesteps = list(range(990, -1, -30))
 
-      <div class="gallery">
-        <figure class="figure">
-          <img src="p5a/iter_final.png" alt="Final iteratively denoised Campanile"/>
-          <figcaption class="figcap">Final iterative reconstruction.</figcaption>
-        </figure>
-        <figure class="figure">
-          <img src="p5a/iter_onestep_compare.png" alt="One-step comparison"/>
-          <figcaption class="figcap">One-step reconstruction (worse).</figcaption>
-        </figure>
-      </div>
+stage_1.scheduler.set_timesteps(timesteps=strided_timesteps)
 
-      <div class="figure figure-center" style="max-width: 740px;">
-        <img src="p5a/iter_gauss_compare.png" alt="Gaussian blur comparison"/>
-        <figcaption class="figcap">Gaussian blur baseline for reference.</figcaption>
-      </div>
-    </section>
+import numpy as np
+def iterative_denoise(im_noisy, i_start, prompt_embeds, timesteps, display=True):
+  image = im_noisy.clone()
+  prompt_embeds = prompt_embeds.to(device).half()
+  with torch.no_grad():
+    for i in range(i_start, len(timesteps) - 1):
+      t = timesteps[i]
+      prev_t = timesteps[i+1]
+
+      alpha_cumprod_t = alphas_cumprod[t].to(device)
+      alpha_cumprod_t_prev = alphas_cumprod[prev_t].to(device)
+      alpha_t = alpha_cumprod_t / alpha_cumprod_t_prev
+      beta_t = 1 - alpha_t
+
+      model_output = stage_1.unet(
+          image,
+          torch.tensor(t).to(device),
+          encoder_hidden_states=prompt_embeds,
+          return_dict=False
+      )[0]
+
+      noise_est, predicted_variance = torch.split(model_output, image.shape[1], dim=1)
+
+      x0_est = (image - torch.sqrt(1 - alpha_cumprod_t) * noise_est) / torch.sqrt(alpha_cumprod_t)
+      x0_est = torch.clamp(x0_est, -1, 1)
+
+      coeff1 = (torch.sqrt(alpha_cumprod_t_prev) * beta_t) / (1 - alpha_cumprod_t)
+      coeff2 = (torch.sqrt(alpha_t) * (1 - alpha_cumprod_t_prev)) / (1 - alpha_cumprod_t)
+      pred_prev_image = coeff1 * x0_est + coeff2 * image
+      if i < len(timesteps) - 1:
+        pred_prev_image = add_variance(predicted_variance, torch.tensor(t).to(device), pred_prev_image)
+      image = pred_prev_image
+      if display and i % 5 == 0:
+        print(f"Iteration {i}, t={t} ->; {prev_t}")
+        vis_img = image[0].permute(1, 2, 0).cpu().float() / 2.0 + 0.5
+        media.show_image(vis_img, height=128)
+
+  clean = image.cpu().detach().numpy()
+  clean = (clean / 2.0 + 0.5).squeeze().transpose(1, 2, 0)
+  clean = np.clip(clean, 0, 1)
+
+  return clean
+
+prompt_embeds = prompt_embeds_dict["a high quality photo"]
+
+i_start = 10
+t_start_val = strided_timesteps[i_start]
+im_noisy = forward(test_im, t).half().to(device)
+
+print(f"Starting Denoising from Step {i_start} (t={t_start_val})")
+media.show_image(im_noisy[0].permute(1,2,0).cpu().float() / 2.0 + 0.5, title="Initial Noisy Image")
+
+clean_iterative = iterative_denoise(im_noisy,
+                          i_start=i_start,
+                          prompt_embeds=prompt_embeds,
+                          timesteps=strided_timesteps)
+
+with torch.no_grad():
+    alpha_cumprod_start = alphas_cumprod[t_start_val].to(device)
+
+    noise_est_onestep = stage_1.unet(
+        im_noisy,
+        torch.tensor(t_start_val).to(device),
+        encoder_hidden_states=prompt_embeds.to(device).half(),
+        return_dict=False
+    )[0][:, :3]
+
+    clean_one_step = (im_noisy - torch.sqrt(1 - alpha_cumprod_start) * noise_est_onestep) / torch.sqrt(alpha_cumprod_start)
+    clean_one_step = torch.clamp(clean_one_step, -1, 1)
+
+    clean_one_step_vis = clean_one_step[0].permute(1, 2, 0).cpu().float() / 2.0 + 0.5
+
+clean_gaussian_vis = TF.gaussian_blur(im_noisy, kernel_size=5)[0].permute(1, 2, 0).cpu().float() / 2.0 + 0.5
+print("Final Results Comparison:")
+media.show_images(
+    [clean_iterative, clean_one_step_vis, clean_gaussian_vis],
+    titles=["Iteratively Denoised", "One-Step Estimate", "Gaussian Blur"],
+    height=256
+)</code></pre>
+    <figcaption class="figcap">
+      Strided iterative denoising implementation and comparison code used for the Campanile experiment.
+    </figcaption>
+  </div>
+
+  <h3>Denoising progression (every 5th step)</h3>
+  <p>
+    I saved intermediate outputs as individual images (not a single strip). The sequence below shows
+    the Campanile becoming progressively less noisy as the loop advances.
+  </p>
+
+  <div class="gallery figure-center">
+    <figure class="figure">
+      <img src="p5/it_10.png" alt="Iteration 10 denoising result"/>
+      <figcaption class="figcap">Iteration <span class="kbd">10</span> (t = 690 → 660).</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/it_15.png" alt="Iteration 15 denoising result"/>
+      <figcaption class="figcap">Iteration <span class="kbd">15</span> (t = 540 → 510).</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/it_20.png" alt="Iteration 20 denoising result"/>
+      <figcaption class="figcap">Iteration <span class="kbd">20</span> (t = 390 → 360).</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/it_25.png" alt="Iteration 25 denoising result"/>
+      <figcaption class="figcap">Iteration <span class="kbd">25</span> (t = 240 → 210).</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/it_30.png" alt="Iteration 30 denoising result"/>
+      <figcaption class="figcap">Iteration <span class="kbd">30</span> (t = 90 → 60).</figcaption>
+    </figure>
+  </div>
+
+  <h3>Final comparison</h3>
+  <div class="gallery" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+    <figure class="figure">
+      <img src="p5/iter_final.png" alt="Final iteratively denoised Campanile"/>
+      <figcaption class="figcap">Final iteratively denoised result.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/onestep_final.png" alt="Final one-step denoised Campanile"/>
+      <figcaption class="figcap">One-step denoised estimate.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="p5/gaussian_final.png" alt="Final Gaussian blurred Campanile"/>
+      <figcaption class="figcap">Gaussian blur baseline.</figcaption>
+    </figure>
+  </div>
+
+  <div class="answer">
+    <div class="label">Observations</div>
+    <ul>
+      <li>The iterative method steadily recovers structure and color as noise decreases across the strided schedule.</li>
+      <li>Compared to one-step denoising, the multi-step approach produces a cleaner, more coherent reconstruction.</li>
+      <li>Gaussian blur reduces high-frequency noise but cannot restore lost structure, especially at higher noise levels.</li>
+    </ul>
+  </div>
+</section>
 
     <!-- ====================== 1.5 Sampling from Noise ====================== -->
     <section class="section" id="p15-sampling">
