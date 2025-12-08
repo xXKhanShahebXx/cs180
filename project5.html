@@ -526,8 +526,7 @@ media.show_images(
 
   <h3>Denoising progression (every 5th step)</h3>
   <p>
-    I saved intermediate outputs as individual images (not a single strip). The sequence below shows
-    the Campanile becoming progressively less noisy as the loop advances.
+    The sequence below shows the Campanile becoming progressively less noisy as the loop advances.
   </p>
 
   <div class="gallery figure-center">
@@ -581,7 +580,7 @@ media.show_images(
 
     <!-- ====================== 1.5 Sampling from Noise ====================== -->
     <section class="section" id="p15-sampling">
-      <h2>Part 1.5 — Diffusion Model Sampling (Unconditional-ish)</h2>
+      <h2>Part 1.5 — Diffusion Model Sampling</h2>
       <p>
         By setting <span class="kbd">i_start = 0</span> and initializing with pure Gaussian noise, I use the
         iterative denoising loop to generate images from scratch using the weak prompt
@@ -591,30 +590,30 @@ media.show_images(
       <div class="callout">
         <strong>Deliverables</strong>
         <ul>
-          <li>Five sampled images without CFG.</li>
+          <li>Five sampled images.</li>
         </ul>
       </div>
 
       <div class="gallery">
         <figure class="figure">
-          <img src="p5a/sample_nocfg_1.png" alt="Sample 1 without CFG"/>
-          <figcaption class="figcap">Sample 1 (no CFG).</figcaption>
+          <img src="p5/sample_1.png" alt="Sample 1"/>
+          <figcaption class="figcap">Sample 1.</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p5a/sample_nocfg_2.png" alt="Sample 2 without CFG"/>
-          <figcaption class="figcap">Sample 2 (no CFG).</figcaption>
+          <img src="p5/sample_2.png" alt="Sample 2"/>
+          <figcaption class="figcap">Sample 2.</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p5a/sample_nocfg_3.png" alt="Sample 3 without CFG"/>
-          <figcaption class="figcap">Sample 3 (no CFG).</figcaption>
+          <img src="p5/sample_3.png" alt="Sample 3"/>
+          <figcaption class="figcap">Sample 3.</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p5a/sample_nocfg_4.png" alt="Sample 4 without CFG"/>
-          <figcaption class="figcap">Sample 4 (no CFG).</figcaption>
+          <img src="p5/sample_4.png" alt="Sample 4"/>
+          <figcaption class="figcap">Sample 4.</figcaption>
         </figure>
         <figure class="figure">
-          <img src="p5a/sample_nocfg_5.png" alt="Sample 5 without CFG"/>
-          <figcaption class="figcap">Sample 5 (no CFG).</figcaption>
+          <img src="p5/sample_5.png" alt="Sample 5"/>
+          <figcaption class="figcap">Sample 5.</figcaption>
         </figure>
       </div>
     </section>
