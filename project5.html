@@ -246,21 +246,16 @@
       <div class="figure">
 <pre class="codeblock"><code>def forward(im, t):
     """
-    Args:
-      im : torch tensor of size (1, 3, 64, 64) representing the clean image
-      t : integer timestep
+    Diffuse a clean image to timestep t.
 
-    Returns:
-      im_noisy : torch tensor of size (1, 3, 64, 64) representing the noisy image at timestep t
+    1. Look up alpha_t = alphas_cumprod[t].
+    2. Sample Gaussian noise ε with same shape as im.
+    3. Return: sqrt(alpha_t) * im + sqrt(1 - alpha_t) * ε.
     """
-    with torch.no_grad():
-        alpha_t = alphas_cumprod[t].to(im.device)
-        epsilon = torch.randn_like(im)
-        im_noisy = torch.sqrt(alpha_t) * im + torch.sqrt(1 - alpha_t) * epsilon
-
-    return im_noisy</code></pre>
+    ...  # implementation follows this formula
+</code></pre>
   <figcaption class="figcap">
-    Forward diffusion implementation used to generate noisy versions of the 64×64 Campanile at specific timesteps.
+    Forward diffusion logic used to generate noisy versions of the 64×64 Campanile at specific timesteps.
   </figcaption>
 </div>
 
@@ -436,91 +431,31 @@
   </div>
 
   <div class="figure">
-<pre class="codeblock"><code>strided_timesteps = list(range(990, -1, -30))
+<pre class="codeblock"><code># Create a strided schedule (e.g., 990 → 0 with step -30)
+strided_timesteps = range(990, -1, -30)
+stage_1.scheduler.set_timesteps(strided_timesteps)
 
-stage_1.scheduler.set_timesteps(timesteps=strided_timesteps)
+def iterative_denoise(im_noisy, i_start, prompt_embeds, timesteps):
+    image = im_noisy
+    for i from i_start to len(timesteps) - 2:
+        t      = timesteps[i]
+        prev_t = timesteps[i + 1]
 
-import numpy as np
-def iterative_denoise(im_noisy, i_start, prompt_embeds, timesteps, display=True):
-  image = im_noisy.clone()
-  prompt_embeds = prompt_embeds.to(device).half()
-  with torch.no_grad():
-    for i in range(i_start, len(timesteps) - 1):
-      t = timesteps[i]
-      prev_t = timesteps[i+1]
+        # 1. Get model_output = UNet(image, t, prompt_embeds)
+        # 2. Split into (noise_est, predicted_variance)
+        # 3. Recover x0_est from (image, noise_est, alpha_cumprod[t])
+        # 4. Compute pred_prev_image using DDPM update (t → prev_t)
+        # 5. Add variance with predicted_variance
+        # 6. Update image ← pred_prev_image and optionally visualize
 
-      alpha_cumprod_t = alphas_cumprod[t].to(device)
-      alpha_cumprod_t_prev = alphas_cumprod[prev_t].to(device)
-      alpha_t = alpha_cumprod_t / alpha_cumprod_t_prev
-      beta_t = 1 - alpha_t
+    return final_clean_numpy_image  # rescaled from [-1,1] to [0,1]
 
-      model_output = stage_1.unet(
-          image,
-          torch.tensor(t).to(device),
-          encoder_hidden_states=prompt_embeds,
-          return_dict=False
-      )[0]
-
-      noise_est, predicted_variance = torch.split(model_output, image.shape[1], dim=1)
-
-      x0_est = (image - torch.sqrt(1 - alpha_cumprod_t) * noise_est) / torch.sqrt(alpha_cumprod_t)
-      x0_est = torch.clamp(x0_est, -1, 1)
-
-      coeff1 = (torch.sqrt(alpha_cumprod_t_prev) * beta_t) / (1 - alpha_cumprod_t)
-      coeff2 = (torch.sqrt(alpha_t) * (1 - alpha_cumprod_t_prev)) / (1 - alpha_cumprod_t)
-      pred_prev_image = coeff1 * x0_est + coeff2 * image
-      if i < len(timesteps) - 1:
-        pred_prev_image = add_variance(predicted_variance, torch.tensor(t).to(device), pred_prev_image)
-      image = pred_prev_image
-      if display and i % 5 == 0:
-        print(f"Iteration {i}, t={t} ->; {prev_t}")
-        vis_img = image[0].permute(1, 2, 0).cpu().float() / 2.0 + 0.5
-        media.show_image(vis_img, height=128)
-
-  clean = image.cpu().detach().numpy()
-  clean = (clean / 2.0 + 0.5).squeeze().transpose(1, 2, 0)
-  clean = np.clip(clean, 0, 1)
-
-  return clean
-
-prompt_embeds = prompt_embeds_dict["a high quality photo"]
-
-i_start = 10
-t_start_val = strided_timesteps[i_start]
-im_noisy = forward(test_im, t).half().to(device)
-
-print(f"Starting Denoising from Step {i_start} (t={t_start_val})")
-media.show_image(im_noisy[0].permute(1,2,0).cpu().float() / 2.0 + 0.5, title="Initial Noisy Image")
-
-clean_iterative = iterative_denoise(im_noisy,
-                          i_start=i_start,
-                          prompt_embeds=prompt_embeds,
-                          timesteps=strided_timesteps)
-
-with torch.no_grad():
-    alpha_cumprod_start = alphas_cumprod[t_start_val].to(device)
-
-    noise_est_onestep = stage_1.unet(
-        im_noisy,
-        torch.tensor(t_start_val).to(device),
-        encoder_hidden_states=prompt_embeds.to(device).half(),
-        return_dict=False
-    )[0][:, :3]
-
-    clean_one_step = (im_noisy - torch.sqrt(1 - alpha_cumprod_start) * noise_est_onestep) / torch.sqrt(alpha_cumprod_start)
-    clean_one_step = torch.clamp(clean_one_step, -1, 1)
-
-    clean_one_step_vis = clean_one_step[0].permute(1, 2, 0).cpu().float() / 2.0 + 0.5
-
-clean_gaussian_vis = TF.gaussian_blur(im_noisy, kernel_size=5)[0].permute(1, 2, 0).cpu().float() / 2.0 + 0.5
-print("Final Results Comparison:")
-media.show_images(
-    [clean_iterative, clean_one_step_vis, clean_gaussian_vis],
-    titles=["Iteratively Denoised", "One-Step Estimate", "Gaussian Blur"],
-    height=256
-)</code></pre>
+# One-step and Gaussian baselines use:
+#   - A single UNet call at t_start for one-step
+#   - A simple Gaussian blur on im_noisy for the classical baseline.
+</code></pre>
     <figcaption class="figcap">
-      Strided iterative denoising implementation and comparison code used for the Campanile experiment.
+      High-level iterative denoising logic and comparison setup used for the Campanile experiment.
     </figcaption>
   </div>
 
@@ -636,62 +571,23 @@ media.show_images(
       </div>
 
       <div class="figure">
-<pre class="codeblock"><code>def iterative_denoise_cfg(im_noisy, i_start, prompt_embeds, uncond_prompt_embeds, timesteps, scale=7, display=True):
-  image = im_noisy.clone()
-  prompt_embeds = prompt_embeds.to(device).half()
-  uncond_prompt_embeds = uncond_prompt_embeds.to(device).half()
-  with torch.no_grad():
-    for i in range(i_start, len(timesteps) - 1):
-      t = timesteps[i]
-      prev_t = timesteps[i+1]
+<pre class="codeblock"><code>def iterative_denoise_cfg(im_noisy, i_start, cond_embeds, uncond_embeds, timesteps, scale=7):
+    image = im_noisy
+    for i from i_start to len(timesteps) - 2:
+        t      = timesteps[i]
+        prev_t = timesteps[i + 1]
 
-      alpha_cumprod_t = alphas_cumprod[t].to(device)
-      alpha_cumprod_t_prev = alphas_cumprod[prev_t].to(device)
-      alpha_t = alpha_cumprod_t / alpha_cumprod_t_prev
-      beta_t = 1 - alpha_t
+        # 1. Predict conditional output:     out_c = UNet(image, t, cond_embeds)
+        # 2. Predict unconditional output:   out_u = UNet(image, t, uncond_embeds)
+        # 3. Split both into (noise, var) and apply CFG:
+        #        eps = eps_u + scale * (eps_c - eps_u)
+        # 4. Use eps in the same DDPM-style update as Part 1.4
+        # 5. Add variance, update image, and optionally visualize
 
-      model_output = stage_1.unet(
-          image,
-          torch.tensor(t).to(device),
-          encoder_hidden_states=prompt_embeds,
-          return_dict=False
-      )[0]
-
-      uncond_model_output = stage_1.unet(
-          image,
-          torch.tensor(t).to(device),
-          encoder_hidden_states=uncond_prompt_embeds,
-          return_dict=False
-      )[0]
-
-      noise_est, predicted_variance = torch.split(model_output, image.shape[1], dim=1)
-      uncond_noise_est, _ = torch.split(uncond_model_output, image.shape[1], dim=1)
-
-      noise_est = uncond_noise_est + scale * (noise_est - uncond_noise_est)
-
-      x0_est = (image - torch.sqrt(1 - alpha_cumprod_t) * noise_est) / torch.sqrt(alpha_cumprod_t)
-      x0_est = torch.clamp(x0_est, -1, 1)
-
-      coeff1 = (torch.sqrt(alpha_cumprod_t_prev) * beta_t) / (1 - alpha_cumprod_t)
-      coeff2 = (torch.sqrt(alpha_t) * (1 - alpha_cumprod_t_prev)) / (1 - alpha_cumprod_t)
-
-      pred_prev_image = coeff1 * x0_est + coeff2 * image
-
-      if i < len(timesteps) - 1:
-        pred_prev_image = add_variance(predicted_variance, torch.tensor(t).cpu(), pred_prev_image)
-      image = pred_prev_image
-      if display and i % 10 == 0:
-        print(f"  Step {i} (t={t})")
-        vis_img = image[0].permute(1, 2, 0).cpu().float() / 2.0 + 0.5
-        media.show_image(vis_img, height=128)
-
-  clean = image.cpu().detach().numpy()
-  clean = (clean / 2.0 + 0.5).squeeze().transpose(1, 2, 0)
-  clean = np.clip(clean, 0, 1)
-
-  return clean</code></pre>
+    return final_clean_numpy_image
+</code></pre>
   <figcaption class="figcap">
-    Classifier-Free Guidance (CFG) iterative denoising loop used to improve text-conditional sample quality.
+    Classifier-Free Guidance (CFG) iterative denoising logic used to improve text-conditional sample quality.
   </figcaption>
 </div>
 
@@ -999,60 +895,26 @@ media.show_images(
   </div>
 
   <div class="figure">
-<pre class="codeblock"><code>def inpaint(original_image, mask, prompt_embeds, uncond_prompt_embeds, timesteps, scale=7, display=True):
-    image = torch.randn_like(original_image).to(device).half()
+<pre class="codeblock"><code>def inpaint(original_image, mask, cond_embeds, uncond_embeds, timesteps, scale=7):
+    # 1. Initialize image as pure Gaussian noise.
+    image = random_noise_like(original_image)
 
-    original_image = original_image.to(device).half()
-    mask = mask.to(device).half()
-    prompt_embeds = prompt_embeds.to(device).half()
-    uncond_prompt_embeds = uncond_prompt_embeds.to(device).half()
+    for each timestep pair (t, prev_t) in timesteps:
+        # 2. Run CFG UNet:
+        #    - conditional output with cond_embeds
+        #    - unconditional output with uncond_embeds
+        #    - combine into guided noise estimate eps via CFG
+        # 3. Perform DDPM-style update (t → prev_t) using eps and variance.
+        # 4. Recompute a noisy version of the original image at prev_t:
+        #        noisy_original = forward(original_image, prev_t)
+        # 5. Apply mask to mix the two:
+        #        image = mask * pred_prev_image + (1 - mask) * noisy_original
 
-    with torch.no_grad():
-        for i in range(0, len(timesteps) - 1):
-            t = timesteps[i]
-            prev_t = timesteps[i+1]
-
-            alpha_cumprod_t = alphas_cumprod[t].to(device)
-            alpha_cumprod_t_prev = alphas_cumprod[prev_t].to(device)
-            alpha_t = alpha_cumprod_t / alpha_cumprod_t_prev
-            beta_t = 1 - alpha_t
-
-            model_output = stage_1.unet(
-                image, torch.tensor(t).to(device),
-                encoder_hidden_states=prompt_embeds, return_dict=False)[0]
-
-            uncond_model_output = stage_1.unet(
-                image, torch.tensor(t).to(device),
-                encoder_hidden_states=uncond_prompt_embeds, return_dict=False)[0]
-
-            noise_est, predicted_variance = torch.split(model_output, image.shape[1], dim=1)
-            uncond_noise_est, _ = torch.split(uncond_model_output, image.shape[1], dim=1)
-            noise_est = uncond_noise_est + scale * (noise_est - uncond_noise_est)
-
-            x0_est = (image - torch.sqrt(1 - alpha_cumprod_t) * noise_est) / torch.sqrt(alpha_cumprod_t)
-            x0_est = torch.clamp(x0_est, -1, 1)
-
-            coeff1 = (torch.sqrt(alpha_cumprod_t_prev) * beta_t) / (1 - alpha_cumprod_t)
-            coeff2 = (torch.sqrt(alpha_t) * (1 - alpha_cumprod_t_prev)) / (1 - alpha_cumprod_t)
-            pred_prev_image = coeff1 * x0_est + coeff2 * image
-
-            if i < len(timesteps) - 1:
-                pred_prev_image = add_variance(predicted_variance, torch.tensor(t).cpu(), pred_prev_image)
-
-            noisy_original = forward(original_image, prev_t)
-            image = mask * pred_prev_image + (1 - mask) * noisy_original
-
-            if display and i % 10 == 0:
-                print(f"Step {i} (t={t})")
-                vis_img = image[0].permute(1, 2, 0).cpu().float() / 2.0 + 0.5
-                media.show_image(vis_img, height=128)
-
-    clean = image.cpu().detach().numpy()
-    clean = (clean / 2.0 + 0.5).squeeze().transpose(1, 2, 0)
-    clean = np.clip(clean, 0, 1)
-    return clean</code></pre>
+    # 6. Return final inpainted result (rescaled to [0,1]).
+    return clean_numpy_image
+</code></pre>
     <figcaption class="figcap">
-      Inpainting loop with CFG and a RePaint-style overwrite step using the forward process.
+      Inpainting logic with CFG and a RePaint-style overwrite step using the forward process.
     </figcaption>
   </div>
 
@@ -1261,84 +1123,31 @@ media.show_images(
   </div>
 
   <div class="figure">
-<pre class="codeblock"><code>def make_flip_illusion(image, i_start, prompt_embeds_1, prompt_embeds_2, uncond_prompt_embeds, timesteps, scale=7, display=True):
-    image = image.to(device).half()
-    prompt_embeds_1 = prompt_embeds_1.to(device).half()
-    prompt_embeds_2 = prompt_embeds_2.to(device).half()
-    uncond_prompt_embeds = uncond_prompt_embeds.to(device).half()
+<pre class="codeblock"><code>def make_flip_illusion(image, i_start, prompt_1, prompt_2, uncond_embeds, timesteps, scale=7):
+    for i from i_start to len(timesteps) - 2:
+        t, prev_t = timesteps[i], timesteps[i + 1]
 
-    with torch.no_grad():
-        for i in range(i_start, len(timesteps) - 1):
-            t = timesteps[i]
-            prev_t = timesteps[i+1]
+        # 1. Upright branch:
+        #    - Run CFG UNet on image with prompt_1 and uncond_embeds
+        #    - Get guided noise prediction eps_1 and variance var_1
 
-            alpha_cumprod_t = alphas_cumprod[t].to(device)
-            alpha_cumprod_t_prev = alphas_cumprod[prev_t].to(device)
-            alpha_t = alpha_cumprod_t / alpha_cumprod_t_prev
-            beta_t = 1 - alpha_t
+        # 2. Flipped branch:
+        #    - Flip image vertically → image_flipped
+        #    - Run CFG UNet on image_flipped with prompt_2 and uncond_embeds
+        #    - Get guided noise prediction eps_2 and variance var_2
+        #    - Flip eps_2 and var_2 back vertically
 
-            model_out_1 = stage_1.unet(
-                image,
-                torch.tensor(t).to(device),
-                encoder_hidden_states=prompt_embeds_1,
-                return_dict=False
-            )[0]
-            uncond_out_1 = stage_1.unet(
-                image,
-                torch.tensor(t).to(device),
-                encoder_hidden_states=uncond_prompt_embeds,
-                return_dict=False
-            )[0]
+        # 3. Combine:
+        #    - final_noise  = (eps_1 + eps_2) / 2
+        #    - final_var    = (var_1 + var_2) / 2
 
-            noise_1, var_1 = torch.split(model_out_1, image.shape[1], dim=1)
-            uncond_noise_1, _ = torch.split(uncond_out_1, image.shape[1], dim=1)
-            noise_pred_1 = uncond_noise_1 + scale * (noise_1 - uncond_noise_1)
+        # 4. Perform DDPM step (t → prev_t) using final_noise and final_var.
+        # 5. Update image.
 
-            image_flipped = torch.flip(image, [2])
-
-            model_out_2 = stage_1.unet(
-                image_flipped,
-                torch.tensor(t).to(device),
-                encoder_hidden_states=prompt_embeds_2,
-                return_dict=False
-            )[0]
-            uncond_out_2 = stage_1.unet(
-                image_flipped,
-                torch.tensor(t).to(device),
-                encoder_hidden_states=uncond_prompt_embeds,
-                return_dict=False
-            )[0]
-
-            noise_2, var_2 = torch.split(model_out_2, image.shape[1], dim=1)
-            uncond_noise_2, _ = torch.split(uncond_out_2, image.shape[1], dim=1)
-            noise_pred_2 = uncond_noise_2 + scale * (noise_2 - uncond_noise_2)
-
-            noise_pred_2 = torch.flip(noise_pred_2, [2])
-            avg_variance = (var_1 + torch.flip(var_2, [2])) / 2.0
-
-            final_noise = (noise_pred_1 + noise_pred_2) / 2.0
-
-            x0_est = (image - torch.sqrt(1 - alpha_cumprod_t) * final_noise) / torch.sqrt(alpha_cumprod_t)
-            x0_est = torch.clamp(x0_est, -1, 1)
-
-            coeff1 = (torch.sqrt(alpha_cumprod_t_prev) * beta_t) / (1 - alpha_cumprod_t)
-            coeff2 = (torch.sqrt(alpha_t) * (1 - alpha_cumprod_t_prev)) / (1 - alpha_cumprod_t)
-            pred_prev_image = coeff1 * x0_est + coeff2 * image
-
-            if i < len(timesteps) - 1:
-                pred_prev_image = add_variance(avg_variance, torch.tensor(t).cpu(), pred_prev_image)
-
-            image = pred_prev_image
-
-            if display and i % 10 == 0:
-                pass
-
-    clean = image.cpu().detach().numpy()
-    clean = (clean / 2.0 + 0.5).squeeze().transpose(1, 2, 0)
-    clean = np.clip(clean, 0, 1)
-    return clean</code></pre>
+    return final_illusion_image  # appears different when flipped vertically
+</code></pre>
     <figcaption class="figcap">
-      Flip-illusion sampling loop used to create visual anagrams by averaging upright and flipped CFG noise estimates.
+      Flip-illusion sampling logic used to create visual anagrams by averaging upright and flipped CFG noise estimates.
     </figcaption>
   </div>
 
@@ -1394,60 +1203,29 @@ media.show_images(
   </div>
 
   <div class="figure">
-<pre class="codeblock"><code>def make_hybrids(image, i_start, prompt_embeds_1, prompt_embeds_2, uncond_prompt_embeds, timesteps, scale=7, display=True):
-    image = image.to(device).half()
-    prompt_embeds_1 = prompt_embeds_1.to(device).half()
-    prompt_embeds_2 = prompt_embeds_2.to(device).half()
-    uncond_prompt_embeds = uncond_prompt_embeds.to(device).half()
+<pre class="codeblock"><code>def make_hybrids(image, i_start, prompt_1, prompt_2, uncond_embeds, timesteps, scale=7):
+    for i from i_start to len(timesteps) - 2:
+        t, prev_t = timesteps[i], timesteps[i + 1]
 
-    with torch.no_grad():
-        for i in range(i_start, len(timesteps) - 1):
-            t = timesteps[i]
-            prev_t = timesteps[i+1]
+        # 1. Run CFG UNet with prompt_1 → eps_1, var_1
+        # 2. Run CFG UNet with prompt_2 → eps_2, var_2
 
-            alpha_cumprod_t = alphas_cumprod[t].to(device)
-            alpha_cumprod_t_prev = alphas_cumprod[prev_t].to(device)
-            alpha_t = alpha_cumprod_t / alpha_cumprod_t_prev
-            beta_t = 1 - alpha_t
+        # 3. Low-pass filter both noise estimates with a large Gaussian blur:
+        #       lp_1 = blur(eps_1, kernel=33, sigma=2)
+        #       lp_2 = blur(eps_2, kernel=33, sigma=2)
 
-            out_1 = stage_1.unet(image, torch.tensor(t).to(device), encoder_hidden_states=prompt_embeds_1, return_dict=False)[0]
-            out_u = stage_1.unet(image, torch.tensor(t).to(device), encoder_hidden_states=uncond_prompt_embeds, return_dict=False)[0]
+        # 4. Combine low- and high-frequency components:
+        #       eps_combined = lp_1 + (eps_2 - lp_2)
 
-            noise_1, var_1 = torch.split(out_1, image.shape[1], dim=1)
-            noise_u, _ = torch.split(out_u, image.shape[1], dim=1)
-            eps_1 = noise_u + scale * (noise_1 - noise_u)
+        # 5. Average variances:
+        #       var_combined = (var_1 + var_2) / 2
 
-            out_2 = stage_1.unet(image, torch.tensor(t).to(device), encoder_hidden_states=prompt_embeds_2, return_dict=False)[0]
+        # 6. Perform DDPM update (t → prev_t) with eps_combined and var_combined.
 
-            noise_2, var_2 = torch.split(out_2, image.shape[1], dim=1)
-            eps_2 = noise_u + scale * (noise_2 - noise_u)
-
-            low_pass_1 = TF.gaussian_blur(eps_1, kernel_size=33, sigma=2)
-            low_pass_2 = TF.gaussian_blur(eps_2, kernel_size=33, sigma=2)
-
-            eps_combined = low_pass_1 + (eps_2 - low_pass_2)
-
-            avg_variance = (var_1 + var_2) / 2.0
-
-            x0_est = (image - torch.sqrt(1 - alpha_cumprod_t) * eps_combined) / torch.sqrt(alpha_cumprod_t)
-            x0_est = torch.clamp(x0_est, -1, 1)
-
-            coeff1 = (torch.sqrt(alpha_cumprod_t_prev) * beta_t) / (1 - alpha_cumprod_t)
-            coeff2 = (torch.sqrt(alpha_t) * (1 - alpha_cumprod_t_prev)) / (1 - alpha_cumprod_t)
-            pred_prev_image = coeff1 * x0_est + coeff2 * image
-
-            if i < len(timesteps) - 1:
-                pred_prev_image = add_variance(avg_variance, torch.tensor(t).cpu(), pred_prev_image)
-
-            image = pred_prev_image
-
-    clean = image.cpu().detach().numpy()
-    clean = clean.astype(np.float32)
-    clean = (clean / 2.0 + 0.5).squeeze().transpose(1, 2, 0)
-    clean = np.clip(clean, 0, 1)
-    return clean</code></pre>
+    return final_hybrid_image  # low-freq prompt 1 from afar, high-freq prompt 2 up close
+</code></pre>
     <figcaption class="figcap">
-      Hybrid-image diffusion loop using low-pass noise from prompt 1 and high-pass noise from prompt 2.
+      Hybrid-image diffusion logic using low-pass noise from prompt 1 and high-pass noise from prompt 2.
     </figcaption>
   </div>
 
@@ -1752,37 +1530,33 @@ media.show_images(
   </p>
   <ul>
     <li>
-      <strong>Normalize time:</strong> I normalized the sampled timestep to
-      <span class="kbd">t_norm = t / 999</span> so that the conditioning signal lies in
-      <span class="kbd">[0, 1]</span>.
+      <strong>Normalize time:</strong> Sample integer <span class="kbd">t ∈ [0, 999]</span>, then compute
+      <span class="kbd">t_norm = t / 999</span> so that the conditioning signal lies in <span class="kbd">[0, 1]</span>.
     </li>
     <li>
-      <strong>Shape handling:</strong> I reshaped the time tensor to
-      <span class="kbd">[B, 1]</span> before passing it into the FCBlocks.
+      <strong>Time MLPs:</strong> Pass <span class="kbd">t_norm</span> through two small FCBlocks
+      to produce vectors <span class="kbd">h₁</span> and <span class="kbd">h₂</span>.
     </li>
     <li>
-      <strong>Where conditioning enters:</strong> Following the diagram/pseudocode, the first time embedding
-      modulates the <span class="kbd">unflatten</span> features, and the second time embedding modulates
-      the <span class="kbd">up1</span> features.
-    </li>
-    <li>
-      <strong>Broadcasting:</strong> The FCBlock outputs are broadcast across spatial dimensions to match the
-      feature map shapes during multiplication.
+      <strong>Where conditioning enters:</strong>
+      <ul>
+        <li>Broadcast and multiply <span class="kbd">h₁</span> into the <span class="kbd">unflatten</span> activations.</li>
+        <li>Broadcast and multiply <span class="kbd">h₂</span> into the <span class="kbd">up1</span> activations.</li>
+      </ul>
     </li>
   </ul>
 
-  <pre class="codeblock"><code># t is an integer timestep sampled in [0, 999]
-t_norm = (t / 999.0).view(B, 1)
+<pre class="codeblock"><code># Pseudocode illustration of the modulation:
+t_norm = t / 999.0            # [B] → normalized time in [0,1]
+h1    = FCBlock1(t_norm)      # time embedding 1
+h2    = FCBlock2(t_norm)      # time embedding 2
 
-t1 = fc1_t(t_norm)
-t2 = fc2_t(t_norm)
-
-# Replace with time-modulated versions
-unflatten = unflatten * t1
-up1 = up1 * t2</code></pre>
+unflatten = unflatten * h1_broadcast
+up1       = up1       * h2_broadcast
+</code></pre>
 
   <p>
-    This modification allows the UNet to learn a <em>time-dependent</em> vector field for flow matching,
+    This allows the UNet to learn a <em>time-dependent</em> vector field for flow matching,
     instead of a single static denoising behavior.
   </p>
 </div>
